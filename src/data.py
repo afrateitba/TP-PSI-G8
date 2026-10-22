@@ -1,7 +1,17 @@
-"""Lectura de la base: imágenes, máscaras y datos de cada archivo."""
+"""Lectura de la base: imágenes, máscaras y datos de cada archivo.
+
+Candado del conjunto de prueba (plan de evaluación, sección 1):
+- load_image, load_vessels y load_fov no abren imágenes de prueba.
+- La única entrada a prueba es load_test_case, que solo se usa en
+  notebooks/99_prueba.ipynb sobre la versión `congelado-test`.
+- image_table lee las 45 imágenes sin pasar por el candado porque arma la
+  partición; scripts/make_split.py no la vuelve a correr si split.csv existe.
+tests/test_lock.py controla que ninguna de esas entradas se use en otro lado.
+"""
 from __future__ import annotations
 
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -10,9 +20,44 @@ from PIL import Image
 from scipy import ndimage as ndi
 
 from .config import (GROUPS, IMAGE_IDS, MASK_THRESHOLD, QUANT_SPLIT, RAW_DIR,
-                     SAME_PERSON_MAX_GAP_MIN)
+                     SAME_PERSON_MAX_GAP_MIN, SPLIT_CSV)
 
 EXIF_DATETIME = 306   # etiqueta del archivo con la fecha y hora de la toma
+
+
+class LockedImageError(PermissionError):
+    """Se intentó abrir una imagen de prueba antes de la evaluación final."""
+
+
+@lru_cache(maxsize=1)
+def load_split() -> pd.DataFrame:
+    """Partición guardada (data/split.csv). Sin el archivo no se abre nada."""
+    if not SPLIT_CSV.exists():
+        raise FileNotFoundError(f"Falta {SPLIT_CSV}: sin partición no se sabe qué es prueba")
+    return pd.read_csv(SPLIT_CSV)
+
+
+def dev_ids(group: str | None = None) -> list[str]:
+    """Imágenes de desarrollo, de todos los grupos o de uno, en el orden de IMAGE_IDS."""
+    s = load_split()
+    keep = s["set"] == "dev"
+    if group is not None:
+        keep &= s["group"] == group
+    chosen = set(s.loc[keep, "image"])
+    return [i for i in IMAGE_IDS if i in chosen]
+
+
+def heldout_ids() -> list[str]:
+    """Imágenes de prueba. Solo para notebooks/99_prueba.ipynb."""
+    chosen = set(load_split().query("set == 'test'")["image"])
+    return [i for i in IMAGE_IDS if i in chosen]
+
+
+def _check_unlocked(image_id: str) -> None:
+    if image_id in heldout_ids():
+        raise LockedImageError(
+            f"{image_id} es una imagen de prueba y está bloqueada hasta la evaluación "
+            "final (docs/plan_evaluacion.md, sección 1).")
 
 
 def image_path(image_id: str, raw_dir: Path = RAW_DIR) -> Path:
@@ -31,14 +76,14 @@ def group_of(image_id: str) -> str:
     return group
 
 
-def load_image(image_id: str, raw_dir: Path = RAW_DIR) -> np.ndarray:
-    """Imagen a color (alto, ancho, 3) en uint8, canales rojo, verde y azul."""
-    with Image.open(image_path(image_id, raw_dir)) as im:
+def _read_rgb(path: Path) -> np.ndarray:
+    """Imagen a color de un archivo, sin candado. Solo para uso interno."""
+    with Image.open(path) as im:
         return np.asarray(im.convert("RGB"))
 
 
 def _binary(path: Path) -> np.ndarray:
-    """Máscara de un archivo .tif como booleano (> MASK_THRESHOLD)."""
+    """Máscara de un archivo .tif como booleano (> MASK_THRESHOLD), sin candado."""
     with Image.open(path) as im:
         a = np.asarray(im)
     if a.ndim == 3:
@@ -46,14 +91,48 @@ def _binary(path: Path) -> np.ndarray:
     return a > MASK_THRESHOLD
 
 
+def _vessels_path(image_id: str, raw_dir: Path) -> Path:
+    return raw_dir / "manual1" / f"{image_id}.tif"
+
+
+def _fov_path(image_id: str, raw_dir: Path) -> Path:
+    return raw_dir / "mask" / f"{image_id}_mask.tif"
+
+
+def load_image(image_id: str, raw_dir: Path = RAW_DIR) -> np.ndarray:
+    """Imagen a color (alto, ancho, 3) en uint8, canales rojo, verde y azul.
+
+    Solo imágenes de desarrollo: con una de prueba da LockedImageError.
+    """
+    _check_unlocked(image_id)
+    return _read_rgb(image_path(image_id, raw_dir))
+
+
 def load_vessels(image_id: str, raw_dir: Path = RAW_DIR) -> np.ndarray:
-    """Máscara de vasos de los expertos (manual1/), True = vaso."""
-    return _binary(raw_dir / "manual1" / f"{image_id}.tif")
+    """Máscara de vasos de los expertos (manual1/), True = vaso. Solo desarrollo."""
+    _check_unlocked(image_id)
+    return _binary(_vessels_path(image_id, raw_dir))
 
 
 def load_fov(image_id: str, raw_dir: Path = RAW_DIR) -> np.ndarray:
-    """Máscara del campo de visión de la base (mask/), True = adentro."""
-    return _binary(raw_dir / "mask" / f"{image_id}_mask.tif")
+    """Máscara del campo de visión de la base (mask/), True = adentro. Solo desarrollo."""
+    _check_unlocked(image_id)
+    return _binary(_fov_path(image_id, raw_dir))
+
+
+def load_test_case(image_id: str, raw_dir: Path = RAW_DIR) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Imagen, máscara de vasos y campo de visión de una imagen de PRUEBA.
+
+    Es la única entrada al conjunto de prueba y solo se usa en
+    notebooks/99_prueba.ipynb, sobre la versión `congelado-test`
+    (tests/test_lock.py lo controla). Con una imagen de desarrollo da error,
+    para que no se use como cargador general.
+    """
+    if image_id not in heldout_ids():
+        raise ValueError(f"{image_id} no es una imagen de prueba; usar load_image")
+    return (_read_rgb(image_path(image_id, raw_dir)),
+            _binary(_vessels_path(image_id, raw_dir)),
+            _binary(_fov_path(image_id, raw_dir)))
 
 
 def capture_time(path: Path) -> datetime:
@@ -105,7 +184,11 @@ def assign_persons(times: pd.Series,
 
 
 def image_table(raw_dir: Path = RAW_DIR) -> pd.DataFrame:
-    """Una fila por imagen con grupo, persona, compresión y lado del disco."""
+    """Una fila por imagen con grupo, persona, compresión y lado del disco.
+
+    Solo sirve para armar la partición (scripts/make_split.py): lee las 45
+    imágenes sin pasar por el candado. Lo que calcula ya está en split.csv.
+    """
     rows = []
     for image_id in IMAGE_IDS:
         path = image_path(image_id, raw_dir)
@@ -116,7 +199,7 @@ def image_table(raw_dir: Path = RAW_DIR) -> pd.DataFrame:
             "capture_time": capture_time(path),
             "quant_mean": round(q, 2),
             "more_compressed": q > QUANT_SPLIT,
-            "disc_side": disc_side(load_image(image_id, raw_dir), load_fov(image_id, raw_dir)),
+            "disc_side": disc_side(_read_rgb(path), _binary(_fov_path(image_id, raw_dir))),
         })
     table = pd.DataFrame(rows).set_index("image")
     table.insert(1, "person", assign_persons(table["capture_time"]))

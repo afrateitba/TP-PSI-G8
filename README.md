@@ -37,7 +37,7 @@ Descarga la base (unos 76 megabytes) a `data/raw/`, que no se versiona. Base de 
 
 | Carpeta | Contenido |
 |---|---|
-| `src/` | Funciones del algoritmo. `config.py` tiene todos los parámetros; `data.py` lee la base; `split.py` arma la partición. |
+| `src/` | Funciones del algoritmo. `config.py` tiene todos los parámetros; `data.py` lee la base (con el candado que bloquea las imágenes de prueba); `split.py` arma la partición. |
 | `scripts/` | Descarga de datos y partición. |
 | `notebooks/` | Un cuaderno por etapa. |
 | `tests/` | Pruebas automáticas. |

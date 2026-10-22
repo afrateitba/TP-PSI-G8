@@ -5,11 +5,11 @@ import pandas as pd
 import pytest
 from PIL import Image
 
-from src.config import GROUPS, IMAGE_IDS, N_PER_GROUP, RAW_DIR
-from src.data import (assign_persons, disc_side, group_of, image_table,
-                      load_fov, load_image, load_vessels, quant_mean)
+from src.config import GROUPS, IMAGE_IDS, N_PER_GROUP, RAW_DIR, SPLIT_CSV
+from src.data import (assign_persons, dev_ids, disc_side, group_of, load_fov,
+                      load_image, load_split, load_vessels, quant_mean)
 
-HAS_DATA = (RAW_DIR / "images").exists()
+HAS_DATA = (RAW_DIR / "images").exists() and SPLIT_CSV.exists()
 
 
 def test_image_ids():
@@ -61,7 +61,9 @@ def test_disc_side_finds_bright_spot():
 
 @pytest.mark.skipif(not HAS_DATA, reason="faltan las imágenes en data/raw")
 def test_real_masks_match_images():
-    for image_id in ["01_h", "11_h", "05_dr", "15_g"]:
+    # Solo imágenes de desarrollo; 13_h es una de las máscaras con píxeles grises.
+    for image_id in ["01_h", "13_h", "05_dr", "03_g"]:
+        assert image_id in dev_ids()
         rgb = load_image(image_id)
         vessels, fov = load_vessels(image_id), load_fov(image_id)
         assert rgb.shape == (2336, 3504, 3) and rgb.dtype == np.uint8
@@ -69,9 +71,10 @@ def test_real_masks_match_images():
         assert 0.05 < vessels[fov].mean() < 0.15
 
 
-@pytest.mark.skipif(not HAS_DATA, reason="faltan las imágenes en data/raw")
+@pytest.mark.skipif(not SPLIT_CSV.exists(), reason="todavía no hay split.csv")
 def test_real_persons():
-    t = image_table()
+    # Se revisa lo guardado en split.csv, sin volver a leer las imágenes de prueba.
+    t = load_split()
     assert len(t) == 45
     assert t.groupby("person")["group"].nunique().max() == 1
     sizes = t.groupby("person").size()

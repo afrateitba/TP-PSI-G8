@@ -165,6 +165,7 @@ Cada etapa termina en una **decisión sobre el algoritmo** (se adopta, se descar
 - Funciones en `src/` con docstring en castellano. Los parámetros van en `src/config.py`, no escritos en el código.
 - Cada función nueva lleva su prueba en `tests/`: si se puede, con una imagen sintética de resultado conocido; con datos reales, con `skipif` si faltan los archivos. **`pytest` tiene que pasar antes de cada commit.**
 - Semilla 2026 en todo lo aleatorio.
+- **Candado de prueba.** Para recorrer imágenes se usa `dev_ids()`. `load_image`, `load_vessels` y `load_fov` dan error con una imagen de prueba. La única entrada a prueba es `load_test_case`, que solo puede aparecer en `notebooks/99_prueba.ipynb`; `tests/test_lock.py` falla si aparece en otro lado.
 - Las imágenes son grandes (8 millones de píxeles). Los mapas intermedios se guardan en `results/`, que no se versiona.
 
 **5.6 Cuadernos**
