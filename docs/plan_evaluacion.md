@@ -131,3 +131,9 @@ Después de la partición, como control de integridad, se calcularon mapas de va
 Ninguna decisión del algoritmo se tomó ni se va a tomar con esos números, y no se guardaron en el repositorio.
 
 **15_h y 15_g no se sortearon.** En sanos y en glaucoma hay una sola persona con un solo ojo: 15_h y 15_g. Con un cupo de 5 imágenes por grupo, que es impar, esa imagen tiene que estar en prueba en todas las particiones válidas, así que fue a prueba con probabilidad 1. No es una filtración, porque no se eligieron por ninguna característica de la imagen ni de su máscara. Las demás imágenes de esos dos grupos sí se sortearon, entre 12 particiones válidas en cada uno. Se mantiene la partición: rehacerla después de commiteada resta más credibilidad de lo que este detalle cambia.
+
+### 14.2 (22/10/2026, antes de calcular resultados) Detección robusta del campo de visión
+
+En la etapa 1 (`notebooks/01_contexto.ipynb`) ninguna candidata de detección automática cumplió la regla (Dice ≥ 0,99 en las 30 imágenes de desarrollo): con 14_h, de periferia oscura, el umbral de Otsu sobre el rojo quedó en 0,954. Con ese resultado a la vista se agregó una tercera candidata, `detect_fov_robust` (umbral de Otsu sobre el logaritmo del brillo, con controles para imágenes sin borde negro), y un criterio extra de robustez: Dice ≥ 0,99 en 9 variantes que simulan otras cámaras (exposición, viñeteo, resolución, escala de grises, fondo gris, etiqueta, compresión y recorte sin borde).
+
+Resultado (`notebooks/01b_campo_de_vision.ipynb`): peor Dice 0,9993 en las 30 imágenes y 0,9964 en el peor caso de las variantes. Se adopta. Efecto sobre prueba: tal como prevé la sección 2, el algoritmo **no recibe la máscara del campo de visión** y la detecta solo. La evaluación sigue usando la máscara de la base (sección 3). No se calculó nada sobre las imágenes de prueba.

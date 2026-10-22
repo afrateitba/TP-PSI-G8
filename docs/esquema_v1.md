@@ -108,7 +108,7 @@ Cada etapa termina en una **decisión sobre el algoritmo** (se adopta, se descar
 **Etapa 1 — Contexto y calibración.**
 - **Grosor de los vasos:** se calcula en las máscaras de los expertos de desarrollo, como el doble de la distancia al borde medida sobre el esqueleto. Se expresa en píxeles y en proporción al diámetro del campo de visión. Los **terciles** fijan los límites entre vasos finos, medianos y gruesos, y no se cambian después.
 - **Escalas:** las de los filtros salen de esa distribución y se expresan en proporción al diámetro del campo de visión, para que el algoritmo funcione con imágenes de otra resolución.
-- **Campo de visión automático:** umbral sobre el canal rojo más limpieza morfológica, comparado con las máscaras de la base. **Criterio:** se usa en el algoritmo si su coeficiente de Dice con la máscara de la base es de al menos 0,99 en todas las imágenes de desarrollo. La evaluación siempre usa la máscara de la base.
+- **Campo de visión automático:** umbral sobre el canal rojo más limpieza morfológica, comparado con las máscaras de la base. **Criterio:** se usa en el algoritmo si su coeficiente de Dice con la máscara de la base es de al menos 0,99 en todas las imágenes de desarrollo. La evaluación siempre usa la máscara de la base. *(22/10: esa candidata falló en una imagen; se adoptó `detect_fov_robust`, que además pasa 9 variantes que simulan otras cámaras. Desvío 14.2 del plan.)*
 - **Resolución de trabajo:** las candidatas son la original, la mitad y la cuarta parte. No se decide acá: entra como candidata en las etapas 2 a 4, siempre evaluando a la resolución original. Si una resolución reducida es no inferior, se elige la más reducida porque es más rápida.
 
 **Etapa 2 — Mapas de color.** Para cada mapa e imagen, el área bajo la curva de sensibilidad contra falsos positivos dentro del campo de visión. El sentido (vaso más claro o más oscuro) se fija con los datos de desarrollo. Se elige el mejor con la regla de la sección 5.3. Orden de simplicidad: verde, luminosidad, otros canales, componentes principales. Además pasan a la etapa 4 los mapas que, sin ser los mejores solos, aportan información distinta (correlación baja con el elegido); la combinación se decide en la etapa 5.
@@ -182,7 +182,7 @@ Cada etapa termina en una **decisión sobre el algoritmo** (se adopta, se descar
 ### 6. Checklist
 
 - [x] **0. Partición y plan** (21/10): descarga, lectura de la base, personas, partición y plan de evaluación. *Pendiente: commit.*
-- [ ] **1. Contexto y calibración**
+- [x] **1. Contexto y calibración** (22/10, `notebooks/01_contexto.ipynb` y `01b_campo_de_vision.ipynb`): límites de grosor 3,47 y 9 píxeles; diámetro del campo de visión 3.262 píxeles; detección del campo de visión con `detect_fov_robust` (desvío 14.2 del plan: la candidata original falló en una imagen; la robusta pasa las 30 y 9 variantes de otras cámaras); las máscaras de sanos parecen marcadas más anchas que las de los otros grupos.
 - [ ] **2. Mapas de color**
 - [ ] **3. Mejoramiento y restauración**
 - [ ] **4. Realce de vasos y textura**

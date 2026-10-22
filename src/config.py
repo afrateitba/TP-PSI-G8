@@ -37,3 +37,17 @@ SAME_PERSON_MAX_GAP_MIN = 10
 # --- Partición -----------------------------------------------------------
 SEED = 2026
 TEST_PER_GROUP = 5   # 15 imágenes de prueba, 30 de desarrollo
+
+# --- Calibración (etapa 1, notebooks/01_contexto.ipynb) -------------------
+# Diámetro del campo de visión: 3.261 a 3.263 píxeles en desarrollo.
+FOV_DIAMETER_REF = 3262
+# Límites entre vasos finos, medianos y gruesos: terciles del ancho sobre la
+# línea central de las 30 máscaras de desarrollo. Fino <= 3,47; grueso > 9.
+# Fijos para todas las imágenes; no se cambian más (plan, sección 5).
+WIDTH_LIMITS_PX = (3.4721359549995796, 9.0)
+WIDTH_LIMITS_REL = (WIDTH_LIMITS_PX[0] / FOV_DIAMETER_REF, WIDTH_LIMITS_PX[1] / FOV_DIAMETER_REF)
+# Campo de visión: el algoritmo lo detecta solo con fov.detect_fov_robust.
+# La candidata original (Otsu sobre el rojo) falló en 14_h (0,954); la robusta
+# da Dice >= 0,9993 en las 30 de desarrollo y >= 0,996 en 9 variantes que
+# simulan otras cámaras (notebooks/01b_campo_de_vision.ipynb; desvío 14.2).
+USE_AUTO_FOV = True
