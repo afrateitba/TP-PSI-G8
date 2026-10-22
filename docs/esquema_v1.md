@@ -69,7 +69,7 @@ High-Resolution Fundus Image Database (Budai et al., 2013), licencia Creative Co
 
 - **Proporción de vasos** en el campo de visión según las máscaras de los expertos: alrededor de 11 % en sanos y 8 % en los otros dos grupos.
 
-> **Aviso.** Esta revisión se hizo sobre las 45 imágenes porque hacía falta para armar la partición (personas y compresión). Lo único que se miró de las máscaras fue la proporción de vasos por grupo y su formato. **Desde la partición, todo lo descriptivo se calcula solo con desarrollo.**
+> **Aviso.** Esta revisión se hizo sobre las 45 imágenes porque hacía falta para armar la partición (personas y compresión). De las máscaras se miró la proporción de vasos de cada imagen y su formato; de las imágenes, el color medio por canal. El detalle está en `docs/plan_evaluacion.md`, desvío 14.1. **Desde la partición, todo lo descriptivo se calcula solo con desarrollo.**
 
 **Desvío respecto del anteproyecto.** El anteproyecto usaba 30 imágenes (sanos y retinopatía) y dejaba afuera el glaucoma. Se usan las 45 para desarrollar y evaluar la segmentación. Motivos: la devolución pone la segmentación en el centro, y con 30 imágenes el conjunto de prueba quedaría en unas 10. La comparación entre grupos sigue siendo sanos contra retinopatía, con el glaucoma como tercer grupo de control.
 
@@ -80,6 +80,8 @@ High-Resolution Fundus Image Database (Budai et al., 2013), licencia Creative Co
 | Imágenes (sanos / retinopatía / glaucoma) | 10 / 10 / 10 | 5 / 5 / 5 |
 | Personas (sanos / retinopatía / glaucoma) | 5 / 8 / 5 | 3 / 4 / 3 |
 | Más comprimidas (sanos / retinopatía / glaucoma) | 6 / 2 / 4 | 4 / 1 / 3 |
+
+15_h y 15_g son las únicas imágenes sueltas de su grupo y, con un cupo impar, van a prueba en todas las particiones válidas (desvío 14.1 del plan). La revisión de la partición (21/10) no encontró personas ni ojos repetidos entre conjuntos.
 
 ---
 

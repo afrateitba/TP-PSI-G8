@@ -120,4 +120,14 @@ Un solo cuaderno, `notebooks/99_prueba.ipynb`, ejecutado una vez sobre el commit
 
 ## 14. Desvíos posteriores a este plan
 
-(Ninguno por ahora.)
+### 14.1 (21/10/2026, antes de calcular resultados) Lo que ya se vio de prueba y dos imágenes que no se sortearon
+
+**Qué se vio de las imágenes de prueba.** La sección 1 dice que antes de la partición se miró "la proporción de vasos por grupo". Es incompleto. En la revisión del 21/10, antes de la partición, se calcularon e imprimieron para las 45 imágenes:
+- con las máscaras de los expertos: la proporción de vasos dentro del campo de visión **imagen por imagen**, la cantidad de píxeles de vaso fuera del campo de visión y los valores presentes en cada máscara (así aparecieron las tres con píxeles grises);
+- con las imágenes: el valor medio del rojo, del verde y del azul dentro del campo de visión, y la fracción de píxeles con el rojo saturado.
+
+Después de la partición, como control de integridad, se calcularon mapas de vasos de las 45 imágenes, prueba incluida (sombrero de copa negro del canal verde, a un octavo de la resolución). El objetivo era buscar un mismo ojo fotografiado en dos fechas y asignado a dos personas. No se usaron las máscaras. Ningún par de personas distintas se parece más de lo esperable por azar: la correlación máxima fue 0,28, contra 0,72 a 0,77 de un control con la misma foto alterada.
+
+Ninguna decisión del algoritmo se tomó ni se va a tomar con esos números, y no se guardaron en el repositorio.
+
+**15_h y 15_g no se sortearon.** En sanos y en glaucoma hay una sola persona con un solo ojo: 15_h y 15_g. Con un cupo de 5 imágenes por grupo, que es impar, esa imagen tiene que estar en prueba en todas las particiones válidas, así que fue a prueba con probabilidad 1. No es una filtración, porque no se eligieron por ninguna característica de la imagen ni de su máscara. Las demás imágenes de esos dos grupos sí se sortearon, entre 12 particiones válidas en cada uno. Se mantiene la partición: rehacerla después de commiteada resta más credibilidad de lo que este detalle cambia.
