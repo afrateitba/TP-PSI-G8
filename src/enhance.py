@@ -10,7 +10,6 @@ from __future__ import annotations
 import numpy as np
 from scipy import ndimage as ndi
 from scipy.signal import oaconvolve
-from skimage.filters import frangi
 from skimage.morphology import disk, white_tophat
 
 # Sentido de cada mapa de la etapa 2: True si los vasos son claros. Las
@@ -66,13 +65,45 @@ def tophat(m: np.ndarray, radius_px: float) -> np.ndarray:
     return white_tophat(np.asarray(m, dtype=np.float32), disk(radius))
 
 
-def frangi_filter(m: np.ndarray, sigmas_px) -> np.ndarray:
-    """Filtro de Frangi para estructuras claras, en las escalas `sigmas_px` (píxeles).
+def frangi_filter(m: np.ndarray, sigmas_px, beta: float = 0.5) -> np.ndarray:
+    """Filtro de Frangi (Frangi et al., 1998) para estructuras claras, en las escalas `sigmas_px`.
 
-    Para cada píxel toma la mayor respuesta entre las escalas.
+    En cada escala se calculan los autovalores de la hessiana multiplicados
+    por σ² (así las escalas son comparables) y la "vascularidad"
+    exp(−R²/2β²) · (1 − exp(−S²/2c²)), con R = |λ1|/|λ2| y S = √(λ1² + λ2²);
+    vale 0 donde la curvatura no es la de una cresta clara (λ2 ≥ 0). Se toma,
+    en cada píxel, la mayor respuesta entre las escalas.
+
+    La constante c es la misma para todas las escalas: la mitad del mayor S.
+    No se usa skimage.filters.frangi porque normaliza cada escala por su
+    cuenta, y entonces la respuesta al ruido de la escala más chica le gana a
+    los vasos de las escalas grandes (en una imagen sintética con vasos de
+    3 a 20 píxeles, área 0,65 contra 0,998 de esta versión). Los bordes de
+    la imagen se extienden por reflexión (por defecto, hessian_matrix rellena
+    con ceros y el borde de la foto parece un vaso).
     """
-    return frangi(np.asarray(m, dtype=np.float32), sigmas=list(sigmas_px),
-                  black_ridges=False).astype(np.float32)
+    from skimage.feature import hessian_matrix, hessian_matrix_eigvals
+
+    m = np.asarray(m, dtype=np.float32)
+    per_scale = []
+    for s in sigmas_px:
+        hess = hessian_matrix(m, sigma=s, order="rc", mode="reflect",
+                              use_gaussian_derivatives=False)
+        e1, e2 = hessian_matrix_eigvals(hess)
+        swap = np.abs(e1) > np.abs(e2)               # ordenar: |a| <= |b|
+        a = np.where(swap, e2, e1) * s ** 2
+        b = np.where(swap, e1, e2) * s ** 2
+        per_scale.append((a, b))
+    c = 0.5 * max(float(np.sqrt(a ** 2 + b ** 2).max()) for a, b in per_scale)
+    if c == 0:                                       # imagen plana: no hay crestas
+        return np.zeros(m.shape, np.float32)
+    out = None
+    for a, b in per_scale:
+        r2 = (a / np.where(b == 0, 1e-12, b)) ** 2
+        v = np.exp(-r2 / (2 * beta ** 2)) * (1 - np.exp(-(a ** 2 + b ** 2) / (2 * c ** 2)))
+        v[b >= 0] = 0                                # cresta clara: curvatura negativa
+        out = v if out is None else np.maximum(out, v)
+    return out.astype(np.float32)
 
 
 # --- Filtros orientados: filtro adaptado, detector de líneas y Gabor ----------------

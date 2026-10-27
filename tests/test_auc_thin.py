@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.metrics import auc, auc_thin
+from src.metrics import auc, auc_thin, thin_masks
 
 LIMITS = (3.47, 9.0)
 
@@ -35,3 +35,9 @@ def test_respects_region():
     with pytest.raises(ValueError):           # sin vasos finos en la región no hay área
         auc_thin(thin.astype(np.float32), truth, region, LIMITS)
         
+
+def test_precomputed_masks_give_same_result():
+    truth, thin, thick = two_vessels()
+    score = np.random.default_rng(2026).random(truth.shape).astype(np.float32) + thin
+    masks = thin_masks(truth, limits=LIMITS)
+    assert auc_thin(score, truth, masks=masks) == pytest.approx(auc_thin(score, truth, limits=LIMITS))

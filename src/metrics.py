@@ -136,15 +136,16 @@ def centerline_sensitivity_by_class(pred, truth, limits, region=None) -> dict[st
 # La misma área de `auc`, pero solo con los vasos finos: los medianos y gruesos
 # no cuentan ni como vaso ni como fondo (etapas 3 y 4).
 
-def auc_thin(score: np.ndarray, truth: np.ndarray, region: np.ndarray | None = None,
-             limits: tuple[float, float] | None = None) -> float:
-    """Área bajo la curva solo con los vasos finos (plan, sección 4).
+def thin_masks(truth: np.ndarray, region: np.ndarray | None = None,
+               limits: tuple[float, float] | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Máscaras para el área en vasos finos: (vasos finos, zona de evaluación).
 
-    Los vasos son los píxeles de `truth` con ancho <= limits[0] (cada píxel
-    toma el ancho del punto más cercano de la línea central,
-    vessels.width_map). Los vasos medianos y gruesos se sacan de la región:
-    no cuentan ni como vaso ni como fondo. Así se comparan los finos contra
-    todo el fondo. `limits` por defecto: config.WIDTH_LIMITS_PX.
+    Los vasos finos son los píxeles de `truth` con ancho <= limits[0] (cada
+    píxel toma el ancho del punto más cercano de la línea central,
+    vessels.width_map). La zona es `region` sin los vasos medianos y gruesos:
+    no cuentan ni como vaso ni como fondo. `limits` por defecto:
+    config.WIDTH_LIMITS_PX. Conviene calcularlas una vez por imagen y
+    pasarlas a auc_thin, porque el ancho de los vasos tarda.
     """
     from .vessels import width_map
 
@@ -157,4 +158,17 @@ def auc_thin(score: np.ndarray, truth: np.ndarray, region: np.ndarray | None = N
     zone = ~(t & ~thin)                       # todo menos los vasos no finos
     if region is not None:
         zone &= region
-    return auc(score, thin, zone)
+    return thin, zone
+
+
+def auc_thin(score: np.ndarray, truth: np.ndarray, region: np.ndarray | None = None,
+             limits: tuple[float, float] | None = None,
+             masks: tuple[np.ndarray, np.ndarray] | None = None) -> float:
+    """Área bajo la curva solo con los vasos finos contra todo el fondo (plan, sección 4).
+
+    `masks` son las de thin_masks(truth, region, limits); si no se dan, se
+    calculan acá.
+    """
+    if masks is None:
+        masks = thin_masks(truth, region, limits)
+    return auc(score, *masks)

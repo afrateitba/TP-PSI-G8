@@ -68,6 +68,22 @@ def test_frangi_highlights_line():
     assert out[10:-10, c].min() > 10 * out[10:-10, :c - 10].max()
 
 
+def test_frangi_multiscale_is_not_dominated_by_noise():
+    # vasos de 3 a 20 píxeles con perfil suave y ruido: con todas las escalas juntas,
+    # Frangi tiene que separar casi tan bien como con la mejor escala sola
+    from src.metrics import auc
+    rng = np.random.default_rng(0)
+    n = 400
+    img = np.zeros((n, n), np.float32)
+    mask = np.zeros((n, n), bool)
+    for x, w, c in [(60, 3, 6), (140, 6, 8), (240, 12, 10), (330, 20, 12)]:
+        xx = np.arange(n) - x
+        img += (c * np.exp(-xx ** 2 / (2 * (w / 2.5) ** 2)))[None, :]
+        mask[:, max(0, x - w // 2 - 1): x + w // 2 + 2] = True
+    img += rng.normal(0, 2, img.shape).astype(np.float32)
+    assert auc(frangi_filter(img, [1, 2, 4, 8, 12]), mask) > 0.95
+
+
 def test_frangi_ignores_fov_edge_after_filling():
     # un disco claro (la retina) sobre negro: sin rellenar, el borde parece un vaso
     n = 201
