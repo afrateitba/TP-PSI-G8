@@ -72,3 +72,25 @@ PCA_SIGN_RULE = "vessels"
 COLOR_MAIN_MAP = "PC3"
 COLOR_REFERENCE_MAP = "Verde"
 COLOR_EXTRA_MAPS = ["PC2", "Verde", "Azul", "Escala de grises"]
+
+
+# --- Realce de vasos y textura (etapa 4, notebooks/04_realce.ipynb) --------
+# Escalas fijas (decisión de criterio, no se ajustan con los datos), sacadas
+# de la etapa 1: anchos representativos de vasos finos a gruesos, hasta el
+# percentil 99 del ancho (26 píxeles). Se guardan en proporción al diámetro
+# del campo de visión para que se achiquen solas al reducir la resolución.
+ENHANCE_WIDTHS_PX = (2, 4, 8, 16, 24)
+ENHANCE_WIDTHS_REL = tuple(w / FOV_DIAMETER_REF for w in ENHANCE_WIDTHS_PX)
+ENHANCE_SIGMA_MIN_PX = 0.5          # piso de σ al reducir la resolución
+ENHANCE_MATCHED_LENGTH = 4.5        # largo del filtro adaptado, en múltiplos de σ
+ENHANCE_GABOR_ELONGATION = 2.0      # largo de Gabor a lo largo del vaso, en múltiplos de σ
+ENHANCE_LINE_LENGTH = 2.0           # largo del detector de líneas, en múltiplos del ancho
+ENHANCE_TOPHAT_RADIUS_REL = 14 / FOV_DIAMETER_REF   # disco más ancho que el vaso más grueso
+# Candidatas en orden de simplicidad (esquema 5.3): "sin filtro" es la más simple.
+ENHANCE_FILTERS = ["sin filtro", "sombrero de copa", "detector de líneas",
+                   "filtro adaptado", "Gabor", "Frangi"]
+ENHANCE_FACTORS = (1, 2, 4)         # resolución original, mitad y cuarta parte
+# Textura: matriz de coocurrencia con 8 niveles, distancia 1, cuatro
+# direcciones y ventana de 15 píxeles a resolución original.
+GLCM_LEVELS = 8
+GLCM_WINDOW_REL = 15 / FOV_DIAMETER_REF

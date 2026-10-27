@@ -130,3 +130,45 @@ def centerline_sensitivity_by_class(pred, truth, limits, region=None) -> dict[st
     lo, hi = limits
     classes = {"fino": w <= lo, "mediano": (w > lo) & (w <= hi), "grueso": w > hi}
     return {k: _ratio(np.count_nonzero(hit & c), np.count_nonzero(c)) for k, c in classes.items()}
+
+
+# --- Área bajo la curva por grosor (plan, secciones 4 y 5) ---------------------
+# La misma área de `auc`, pero solo con los vasos finos: los medianos y gruesos
+# no cuentan ni como vaso ni como fondo (etapas 3 y 4).
+
+def thin_masks(truth: np.ndarray, region: np.ndarray | None = None,
+               limits: tuple[float, float] | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Máscaras para el área en vasos finos: (vasos finos, zona de evaluación).
+
+    Los vasos finos son los píxeles de `truth` con ancho <= limits[0] (cada
+    píxel toma el ancho del punto más cercano de la línea central,
+    vessels.width_map). La zona es `region` sin los vasos medianos y gruesos:
+    no cuentan ni como vaso ni como fondo. `limits` por defecto:
+    config.WIDTH_LIMITS_PX. Conviene calcularlas una vez por imagen y
+    pasarlas a auc_thin, porque el ancho de los vasos tarda.
+    """
+    from .vessels import width_map
+
+    if limits is None:
+        from .config import WIDTH_LIMITS_PX as limits
+    t = truth.astype(bool)
+    if region is not None:
+        t = t & region
+    thin = t & (width_map(t) <= limits[0])
+    zone = ~(t & ~thin)                       # todo menos los vasos no finos
+    if region is not None:
+        zone &= region
+    return thin, zone
+
+
+def auc_thin(score: np.ndarray, truth: np.ndarray, region: np.ndarray | None = None,
+             limits: tuple[float, float] | None = None,
+             masks: tuple[np.ndarray, np.ndarray] | None = None) -> float:
+    """Área bajo la curva solo con los vasos finos contra todo el fondo (plan, sección 4).
+
+    `masks` son las de thin_masks(truth, region, limits); si no se dan, se
+    calculan acá.
+    """
+    if masks is None:
+        masks = thin_masks(truth, region, limits)
+    return auc(score, *masks)
