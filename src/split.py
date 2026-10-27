@@ -65,3 +65,24 @@ def make_split(table: pd.DataFrame, n_test: int = TEST_PER_GROUP,
     out = table.copy()
     out["set"] = np.where(out["person"].isin(test), "test", "dev")
     return out
+
+
+def person_folds(table: pd.DataFrame, k: int = 5, seed: int = SEED) -> pd.Series:
+    """Grupos de validación cruzada por persona, repartiendo los grupos clínicos.
+
+    `table` necesita las columnas person y group. Dentro de cada grupo clínico
+    las personas se mezclan con `seed` y se reparten en ronda entre los `k`
+    grupos, siguiendo la ronda de un grupo clínico al siguiente para que los
+    tamaños queden parejos. Devuelve el número de grupo (0 a k-1) de cada
+    persona, indexado por persona. Las dos imágenes de una persona siempre
+    quedan juntas.
+    """
+    rng = np.random.default_rng(seed)
+    persons = table.drop_duplicates("person").set_index("person")["group"]
+    fold, turn = {}, 0
+    for group in [g for g in GROUPS if g in set(persons)]:
+        members = sorted(persons[persons == group].index)
+        for p in rng.permutation(members):
+            fold[p] = turn % k
+            turn += 1
+    return pd.Series(fold, name="fold").sort_index()

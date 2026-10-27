@@ -183,7 +183,7 @@ Cada etapa termina en una **decisión sobre el algoritmo** (se adopta, se descar
 
 - [x] **0. Partición y plan** (21/10): descarga, lectura de la base, personas, partición y plan de evaluación. *Pendiente: commit.*
 - [x] **1. Contexto y calibración** (22/10, `notebooks/01_contexto.ipynb` y `01b_campo_de_vision.ipynb`): límites de grosor 3,47 y 9 píxeles; diámetro del campo de visión 3.262 píxeles; detección del campo de visión con `detect_fov_robust` (desvío 14.2 del plan: la candidata original falló en una imagen; la robusta pasa las 30 y 9 variantes de otras cámaras); las máscaras de sanos están marcadas más anchas que las de los otros grupos, y es la forma de marcar y no la retina: el ancho visible en la foto es igual en los tres grupos (`01c_ancho_visible.ipynb`).
-- [ ] **2. Mapas de color**
+- [x] **2. Mapas de color**. Karolina, 25/10 (`notebooks/02_mapas_color.ipynb`, reglas escritas después de correr): de diez mapas, la tercera componente principal del color por imagen, con vasos claros, separa mejor (área media 0,81) que el verde (0,69); el verde queda como referencia clásica. 26/10 (`02b_signo_componentes.ipynb`): el signo de las componentes se fija por la oscuridad local del verde. 26/10 (`02c_cierre_mapas.ipynb`): la tercera componente gana en las 5 vueltas de la validación cruzada por personas (0,81 afuera, +0,12 sobre el verde); a la mitad o a la cuarta parte de la resolución no pierde (se cierra en la etapa 4); combinar mapas suma (los diez juntos 0,87) y pasan a las etapas 4 y 5 la segunda componente, el verde, el azul y la escala de grises. Funciones en `src/color.py`, `src/stats.py` y `src/split.py`.
 - [ ] **3. Mejoramiento y restauración**
 - [ ] **4. Realce de vasos y textura**
 - [ ] **5. Segmentación**
