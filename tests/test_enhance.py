@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from src.enhance import (cuantizar, detector_lineas, escala_px, filtro_adaptado,
-                         frangi_realce, gabor_realce, orientar, rellenar_fuera,
-                         sigma_para_ancho, sombrero_de_copa, textura_glcm)
+from src.enhance import (agrandar, cuantizar, detector_lineas, escala_px, filtro_adaptado,
+                         frangi_realce, gabor_realce, orientar, preparar_mapas,
+                         rellenar_fuera, sigma_para_ancho, sombrero_de_copa, textura_glcm)
 
 
 def linea_sintetica(ancho=5, oscura=True, n=101):
@@ -165,3 +165,50 @@ def test_glcm_coincide_con_skimage():
                      symmetric=True, normed=True)
     assert t["contraste"][30, 30] == pytest.approx(graycoprops(g, "contrast").mean(), rel=0.05)
     assert t["energia"][30, 30] == pytest.approx((graycoprops(g, "energy") ** 2).mean(), rel=0.05) 
+
+
+# --- Preparación de los mapas y resolución -----------------------------------
+
+def foto_sintetica():
+    """Retina rojiza recortada arriba y abajo (como en la base), con un vaso vertical oscuro."""
+    rng = np.random.default_rng(2026)
+    alto, ancho = 400, 600
+    yy, xx = np.mgrid[:alto, :ancho]
+    campo = np.hypot(yy - alto / 2, xx - ancho / 2) < 250
+    vaso = campo & (np.abs(xx - 330) <= 3)
+    rgb = np.zeros((alto, ancho, 3), np.float32)
+    rgb[campo] = (180, 90, 40)
+    rgb[vaso] = (150, 50, 30)
+    rgb[campo] += rng.normal(0, 3, (campo.sum(), 3))
+    return rgb.clip(0, 255).astype(np.uint8), campo, vaso
+
+
+@pytest.mark.parametrize("factor", [1, 2, 4])
+def test_preparar_mapas_reduce_y_mide_el_diametro(factor):
+    rgb, campo, vaso = foto_sintetica()
+    mapas, region, diametro = preparar_mapas(rgb, ["Verde", "PC3"], factor)
+    assert mapas["Verde"].shape == (400 // factor, 600 // factor)
+    assert diametro == pytest.approx(500 / factor, abs=3)
+
+
+def test_preparar_mapas_orienta_y_rellena():
+    rgb, campo, vaso = foto_sintetica()
+    mapas, region, _ = preparar_mapas(rgb, ["Verde"])
+    verde = mapas["Verde"]
+    assert verde[vaso].mean() > verde[campo & ~vaso].mean()     # vaso claro tras invertir
+    adentro = verde[region]
+    assert adentro.min() - 1e-6 <= verde[0, 0] <= adentro.max() + 1e-6   # sin escalón afuera
+
+
+def test_agrandar_vuelve_al_tamano_original():
+    assert agrandar(np.ones((100, 150), np.float32), (400, 600)).shape == (400, 600)
+
+
+@pytest.mark.parametrize("factor", [1, 2])
+def test_frangi_a_resolucion_reducida_encuentra_el_vaso(factor):
+    from src.metrics import auc
+    rgb, campo, vaso = foto_sintetica()
+    mapas, _, diametro = preparar_mapas(rgb, ["Verde"], factor)
+    sigma = escala_px(sigma_para_ancho(7) / 500, diametro)     # vaso de 7 px en la original
+    salida = agrandar(frangi_realce(mapas["Verde"], [sigma]), rgb.shape[:2])
+    assert auc(salida, vaso, campo) > 0.95

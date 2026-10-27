@@ -218,3 +218,43 @@ def textura_glcm(q, niveles, ventana_px, distancia=1):
                 energia += p ** 2 if i == j else p ** 2 / 2
     n = len(DESPLAZAMIENTOS)
     return {"contraste": contraste / n, "homogeneidad": homogeneidad / n, "energia": energia / n}
+
+
+# --- Preparación de los mapas y resolución de trabajo -----------------------
+
+def preparar_mapas(rgb, nombres, factor=1):
+    """Mapas de la etapa 2 listos para filtrar, calculados con la foto reducida `factor` veces.
+
+    1. Reduce la foto promediando bloques de factor × factor (igual que
+       color.color_maps_at_scale).
+    2. Detecta el campo de visión en la foto reducida y mide su diámetro.
+    3. Calcula los mapas `nombres`, los orienta con los vasos claros y
+       rellena el exterior del campo de visión.
+
+    Devuelve (mapas, campo de visión detectado, diámetro en píxeles de la
+    foto reducida). Las escalas de los filtros se pasan a píxeles con ese
+    diámetro (escala_px), así que se achican solas al reducir.
+    """
+    from PIL import Image
+    from .color import color_maps
+    from .fov import detect_fov_robust, fov_diameter
+
+    chica = rgb if factor == 1 else np.asarray(Image.fromarray(rgb).reduce(factor))
+    region = detect_fov_robust(chica)
+    diametro = fov_diameter(region)
+    mapas = color_maps(chica, region)
+    listos = {n: rellenar_fuera(orientar(mapas[n], n), region) for n in nombres}
+    return listos, region, diametro
+
+
+def agrandar(salida, forma):
+    """Lleva una salida calculada a resolución reducida al tamaño `forma`, con interpolación lineal.
+
+    Así se evalúa siempre a resolución original (plan, sección 3).
+    """
+    from skimage.transform import resize
+
+    if salida.shape == tuple(forma):
+        return salida
+    return resize(salida, forma, order=1, preserve_range=True,
+                  anti_aliasing=False).astype(np.float32)
