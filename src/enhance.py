@@ -138,3 +138,28 @@ def detector_lineas(mapa, largo_px, n_orientaciones=N_ORIENTACIONES):
     lineas = _maximo_orientado(mapa, [nucleo_linea(largo_px, t) for t in angulos])
     lado = 2 * int(np.ceil(largo_px / 2)) + 1
     return lineas - ndi.uniform_filter(mapa, size=lado)
+
+
+    # --- Gabor -------------------------------------------------------------------
+
+def nucleo_gabor(sigma_px, theta, elongacion=2.0):
+    """Parte real (par) de un núcleo de Gabor orientado, para vasos claros.
+
+    A través del vaso: coseno de longitud de onda 4·σ bajo una gaussiana de
+    desvío `sigma_px`, de modo que el lóbulo positivo central tiene un ancho
+    de unos 2·σ, como el vaso (sigma_para_ancho). A lo largo del vaso: una
+    gaussiana `elongacion` veces más larga. Media cero (un fondo plano da 0).
+    """
+    sigma_v = elongacion * sigma_px
+    radio = int(np.ceil(3 * max(sigma_px, sigma_v)))
+    u, v = _ejes(radio, theta)
+    k = (np.exp(-u ** 2 / (2 * sigma_px ** 2) - v ** 2 / (2 * sigma_v ** 2))
+         * np.cos(2 * np.pi * u / (4 * sigma_px)))
+    k -= k.mean()
+    return (k / np.abs(k).sum()).astype(np.float32)
+
+
+def gabor_realce(mapa, sigma_px, elongacion=2.0, n_orientaciones=N_ORIENTACIONES):
+    """Filtro de Gabor en `n_orientaciones` ángulos; para cada píxel, la mayor respuesta."""
+    angulos = np.arange(n_orientaciones) * np.pi / n_orientaciones
+    return _maximo_orientado(mapa, [nucleo_gabor(sigma_px, t, elongacion) for t in angulos])

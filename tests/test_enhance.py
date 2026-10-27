@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 
 from src.enhance import (detector_lineas, escala_px, filtro_adaptado, frangi_realce,
-                         orientar, rellenar_fuera, sigma_para_ancho, sombrero_de_copa)
+                         gabor_realce, orientar, rellenar_fuera, sigma_para_ancho,
+                         sombrero_de_copa)
 
 
 def linea_sintetica(ancho=5, oscura=True, n=101):
@@ -83,6 +84,7 @@ def linea_diagonal(ancho=5, n=101):
 @pytest.mark.parametrize("filtro", [
     lambda m: filtro_adaptado(m, sigma_px=2.5, largo_px=9),
     lambda m: detector_lineas(m, largo_px=15),
+    lambda m: gabor_realce(m, sigma_px=2.5),
 ])
 def test_orientado_resalta_la_linea_y_no_el_fondo(filtro):
     img, linea = linea_sintetica(ancho=5, oscura=False)
@@ -95,6 +97,7 @@ def test_orientado_resalta_la_linea_y_no_el_fondo(filtro):
 @pytest.mark.parametrize("filtro", [
     lambda m: filtro_adaptado(m, sigma_px=2.5, largo_px=9),
     lambda m: detector_lineas(m, largo_px=15),
+    lambda m: gabor_realce(m, sigma_px=2.5),
 ])
 def test_orientado_funciona_en_diagonal(filtro):
     vertical, _ = linea_sintetica(ancho=5, oscura=False)
@@ -112,3 +115,10 @@ def test_adaptado_ignora_estructuras_anchas():
     r_angosta = filtro_adaptado(angosta, 2.5, 9)[c, c]
     r_ancha = filtro_adaptado(ancha, 2.5, 9)[c, c]
     assert r_ancha < 0.1 * r_angosta                        # el centro de una meseta da casi 0 
+
+
+def test_gabor_ignora_estructuras_anchas():
+    angosta, _ = linea_sintetica(ancho=5, oscura=False)
+    ancha, _ = linea_sintetica(ancho=31, oscura=False)
+    c = angosta.shape[0] // 2
+    assert gabor_realce(ancha, 2.5)[c, c] < 0.1 * gabor_realce(angosta, 2.5)[c, c]
