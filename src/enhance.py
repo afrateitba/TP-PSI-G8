@@ -163,3 +163,58 @@ def gabor_realce(mapa, sigma_px, elongacion=2.0, n_orientaciones=N_ORIENTACIONES
     """Filtro de Gabor en `n_orientaciones` ángulos; para cada píxel, la mayor respuesta."""
     angulos = np.arange(n_orientaciones) * np.pi / n_orientaciones
     return _maximo_orientado(mapa, [nucleo_gabor(sigma_px, t, elongacion) for t in angulos])
+
+
+# --- Textura: matriz de coocurrencia en una ventana -------------------------
+# Cuatro direcciones (0°, 45°, 90° y 135°); cada medida se promedia entre ellas.
+DESPLAZAMIENTOS = ((0, 1), (-1, 1), (-1, 0), (-1, -1))   # (fila, columna) para distancia 1
+
+
+def cuantizar(mapa, niveles, region=None):
+    """Lleva el mapa a `niveles` niveles de gris (0 … niveles − 1) con igual cantidad de píxeles.
+
+    Los cortes son los cuantiles del mapa dentro de `region` (por ejemplo, el
+    campo de visión detectado); sin `region`, de toda la imagen.
+    """
+    mapa = np.asarray(mapa, dtype=np.float32)
+    valores = mapa[region] if region is not None else mapa.ravel()
+    cortes = np.quantile(valores, np.arange(1, niveles) / niveles)
+    return np.searchsorted(cortes, mapa, side="right").astype(np.uint8)
+
+
+def textura_glcm(q, niveles, ventana_px, distancia=1):
+    """Contraste, homogeneidad y energía de la matriz de coocurrencia alrededor de cada píxel.
+
+    `q` es un mapa cuantizado (cuantizar). Para cada píxel se cuentan los
+    pares (píxel, vecino a `distancia` en cada dirección) dentro de una
+    ventana de `ventana_px` de lado, con la matriz simétrica y normalizada,
+    como graycomatrix(symmetric=True, normed=True). Se calcula con filtros de
+    promedio sobre los pares, sin recorrer las ventanas una por una.
+
+    "Energía" es la suma de los cuadrados de la matriz (segundo momento
+    angular); graycoprops(..., "energy") da su raíz cuadrada.
+
+    Devuelve un diccionario con los tres mapas. No siguen la convención
+    "alto = vaso": su sentido lo decide la combinación de la etapa 5.
+    """
+    q = np.asarray(q, dtype=np.int16)
+    alto, ancho = q.shape
+    d = distancia
+    extendida = np.pad(q, d, mode="reflect")
+    media = lambda a: ndi.uniform_filter(a.astype(np.float32), size=ventana_px, mode="reflect")
+    contraste = np.zeros(q.shape, np.float32)
+    homogeneidad = np.zeros(q.shape, np.float32)
+    energia = np.zeros(q.shape, np.float32)
+    for dy, dx in DESPLAZAMIENTOS:
+        vecino = extendida[d + dy * d: d + dy * d + alto, d + dx * d: d + dx * d + ancho]
+        dif2 = (q - vecino).astype(np.float32) ** 2
+        contraste += media(dif2)
+        homogeneidad += media(1.0 / (1.0 + dif2))
+        a, b = np.minimum(q, vecino), np.maximum(q, vecino)   # par sin orden
+        for i in range(niveles):
+            for j in range(i, niveles):
+                p = media((a == i) & (b == j))
+                # matriz simétrica: un par i ≠ j se reparte en (i, j) y (j, i)
+                energia += p ** 2 if i == j else p ** 2 / 2
+    n = len(DESPLAZAMIENTOS)
+    return {"contraste": contraste / n, "homogeneidad": homogeneidad / n, "energia": energia / n}

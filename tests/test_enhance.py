@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from src.enhance import (detector_lineas, escala_px, filtro_adaptado, frangi_realce,
-                         gabor_realce, orientar, rellenar_fuera, sigma_para_ancho,
-                         sombrero_de_copa)
+from src.enhance import (cuantizar, detector_lineas, escala_px, filtro_adaptado,
+                         frangi_realce, gabor_realce, orientar, rellenar_fuera,
+                         sigma_para_ancho, sombrero_de_copa, textura_glcm)
 
 
 def linea_sintetica(ancho=5, oscura=True, n=101):
@@ -122,3 +122,46 @@ def test_gabor_ignora_estructuras_anchas():
     ancha, _ = linea_sintetica(ancho=31, oscura=False)
     c = angosta.shape[0] // 2
     assert gabor_realce(ancha, 2.5)[c, c] < 0.1 * gabor_realce(angosta, 2.5)[c, c]
+
+
+   # --- Textura -----------------------------------------------------------------
+
+def test_cuantizar_reparte_por_igual():
+    m = np.random.default_rng(2026).random((100, 100)).astype(np.float32)
+    q = cuantizar(m, 8)
+    assert q.min() == 0 and q.max() == 7
+    conteos = np.bincount(q.ravel(), minlength=8)
+    assert conteos.min() > 0.9 * conteos.max()       # cada nivel con ~1/8 de los píxeles
+
+
+def test_glcm_imagen_constante():
+    t = textura_glcm(np.full((40, 40), 3, np.uint8), niveles=8, ventana_px=7)
+    assert np.allclose(t["contraste"], 0)
+    assert np.allclose(t["homogeneidad"], 1)
+    assert np.allclose(t["energia"], 1)
+
+
+def test_glcm_rayas_verticales():
+    # columnas 0, 1, 0, 1…: el vecino horizontal y los diagonales siempre difieren en 1;
+    # el vertical, nunca. Promedio de las 4 direcciones: contraste 3/4, homogeneidad
+    # (3 · 1/2 + 1) / 4 = 0,625; energía 1/2 en cada dirección.
+    # ventana de lado par: cubre tantas columnas 0 como 1
+    q = np.tile(np.array([0, 1], np.uint8), (40, 20))
+    t = textura_glcm(q, niveles=2, ventana_px=8)
+    centro = (slice(10, 30), slice(10, 30))
+    assert np.allclose(t["contraste"][centro], 0.75)
+    assert np.allclose(t["homogeneidad"][centro], 0.625)
+    assert np.allclose(t["energia"][centro], 0.5)
+
+
+def test_glcm_coincide_con_skimage():
+    # con una ventana que cubre casi toda la imagen, el contraste y la energía
+    # (promediados en las 4 direcciones) coinciden con graycomatrix
+    from skimage.feature import graycomatrix, graycoprops
+    rng = np.random.default_rng(2026)
+    q = rng.integers(0, 4, (60, 60)).astype(np.uint8)
+    t = textura_glcm(q, niveles=4, ventana_px=61)
+    g = graycomatrix(q, [1], [0, np.pi / 4, np.pi / 2, 3 * np.pi / 4], levels=4,
+                     symmetric=True, normed=True)
+    assert t["contraste"][30, 30] == pytest.approx(graycoprops(g, "contrast").mean(), rel=0.05)
+    assert t["energia"][30, 30] == pytest.approx((graycoprops(g, "energy") ** 2).mean(), rel=0.05) 
