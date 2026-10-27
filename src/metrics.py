@@ -81,3 +81,52 @@ def auc(score: np.ndarray, truth: np.ndarray, region: np.ndarray | None = None) 
         raise ValueError("La región tiene que tener vasos y fondo")
     ranks = rankdata(s, method="average")
     return float((ranks[t].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))
+
+
+# --- Línea central (desvío 14.3 del plan) ----------------------------------
+# Comparan los esqueletos y no los píxeles: no dependen de cuán ancho se
+# dibujó cada vaso (etapa 1c: las máscaras de sanos están marcadas más anchas).
+
+def _skeleton(mask: np.ndarray, region: np.ndarray | None) -> np.ndarray:
+    from skimage.morphology import skeletonize
+
+    m = mask.astype(bool)
+    if region is not None:
+        m = m & region
+    return skeletonize(m)
+
+
+def centerline_sensitivity(pred, truth, region=None) -> float:
+    """¿Encontró los vasos? Fracción de la línea central de `truth` que cae dentro de `pred`."""
+    skel = _skeleton(truth, region)
+    return _ratio(np.count_nonzero(skel & pred.astype(bool)), np.count_nonzero(skel))
+
+
+def centerline_precision(pred, truth, region=None) -> float:
+    """¿Lo marcado son vasos? Fracción de la línea central de `pred` que cae dentro de `truth`."""
+    skel = _skeleton(pred, region)
+    return _ratio(np.count_nonzero(skel & truth.astype(bool)), np.count_nonzero(skel))
+
+
+def centerline_dice(pred, truth, region=None) -> float:
+    """Combinación de las dos anteriores: 2·P·S / (P + S) (Shit et al., 2021)."""
+    s = centerline_sensitivity(pred, truth, region)
+    p = centerline_precision(pred, truth, region)
+    return _ratio(2 * p * s, p + s)
+
+
+def centerline_sensitivity_by_class(pred, truth, limits, region=None) -> dict[str, float]:
+    """Sensibilidad de línea central de los vasos finos, medianos y gruesos.
+
+    La clase de cada punto de la línea central de `truth` sale de su ancho
+    marcado (vessels.skeleton_widths) y de `limits` (config.WIDTH_LIMITS_PX).
+    """
+    from .vessels import skeleton_widths
+
+    t = truth.astype(bool) if region is None else truth.astype(bool) & region
+    skel, widths = skeleton_widths(t)
+    w = widths[skel]
+    hit = pred.astype(bool)[skel]
+    lo, hi = limits
+    classes = {"fino": w <= lo, "mediano": (w > lo) & (w <= hi), "grueso": w > hi}
+    return {k: _ratio(np.count_nonzero(hit & c), np.count_nonzero(c)) for k, c in classes.items()}

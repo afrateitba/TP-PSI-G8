@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
 
-from src.metrics import accuracy, auc, confusion, dice, matthews, sensitivity, specificity
+from src.metrics import (accuracy, auc, centerline_dice, centerline_precision, centerline_sensitivity,
+                         centerline_sensitivity_by_class, confusion, dice, matthews, sensitivity,
+                         specificity)
 
 
 def _example(tp, fn, fp, tn):
@@ -68,3 +70,44 @@ def test_auc_region_and_errors():
     assert auc(score, truth, region) == pytest.approx(1)
     with pytest.raises(ValueError):
         auc(score, np.zeros(4, bool))
+
+
+# --- Línea central -----------------------------------------------------------
+
+def _bar(width, rows=(30, 70), length=100, size=(100, 120), center=None):
+    img = np.zeros(size, bool)
+    for r in rows:
+        img[r - width // 2: r - width // 2 + width, 10:10 + length] = True
+    return img
+
+
+def test_centerline_ignores_drawn_width():
+    # El experto marca 9 píxeles y el algoritmo 7, sobre los mismos vasos.
+    expert, algo = _bar(9), _bar(7)
+    assert sensitivity(algo, expert) == pytest.approx(7 / 9)
+    assert centerline_sensitivity(algo, expert) == pytest.approx(1)
+    assert centerline_precision(algo, expert) == pytest.approx(1)
+    assert centerline_dice(algo, expert) == pytest.approx(1)
+
+
+def test_centerline_missing_and_spurious_vessels():
+    expert = _bar(5, rows=(30, 70))
+    only_one = _bar(5, rows=(30,))
+    assert centerline_sensitivity(only_one, expert) == pytest.approx(0.5, abs=0.02)
+    assert centerline_precision(only_one, expert) == pytest.approx(1)
+    extra = _bar(5, rows=(30, 70, 90))
+    assert centerline_precision(extra, expert) == pytest.approx(2 / 3, abs=0.02)
+    assert centerline_sensitivity(extra, expert) == pytest.approx(1)
+
+
+def test_centerline_by_class():
+    expert = np.zeros((120, 140), bool)
+    expert[20:21, 10:130] = True      # fino (1 píxel)
+    expert[50:55, 10:130] = True      # mediano (5)
+    expert[80:91, 10:130] = True      # grueso (11)
+    algo = expert.copy()
+    algo[20:21] = False               # se pierde el fino
+    by = centerline_sensitivity_by_class(algo, expert, (3.47, 9.0))
+    assert by["fino"] < 0.05          # solo las puntas de la barra mediana miden menos de 3,47
+    assert by["mediano"] == pytest.approx(1)
+    assert by["grueso"] == pytest.approx(1)
