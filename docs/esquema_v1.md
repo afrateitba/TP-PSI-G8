@@ -182,7 +182,7 @@ Cada etapa termina en una **decisión sobre el algoritmo** (se adopta, se descar
 ### 6. Checklist
 
 - [x] **0. Partición y plan** (21/10): descarga, lectura de la base, personas, partición y plan de evaluación. *Pendiente: commit.*
-- [x] **1. Contexto y calibración** (22/10, `notebooks/01_contexto.ipynb` y `01b_campo_de_vision.ipynb`): límites de grosor 3,47 y 9 píxeles; diámetro del campo de visión 3.262 píxeles; detección del campo de visión con `detect_fov_robust` (desvío 14.2 del plan: la candidata original falló en una imagen; la robusta pasa las 30 y 9 variantes de otras cámaras); las máscaras de sanos parecen marcadas más anchas que las de los otros grupos.
+- [x] **1. Contexto y calibración** (22/10, `notebooks/01_contexto.ipynb` y `01b_campo_de_vision.ipynb`): límites de grosor 3,47 y 9 píxeles; diámetro del campo de visión 3.262 píxeles; detección del campo de visión con `detect_fov_robust` (desvío 14.2 del plan: la candidata original falló en una imagen; la robusta pasa las 30 y 9 variantes de otras cámaras); las máscaras de sanos están marcadas más anchas que las de los otros grupos, y es la forma de marcar y no la retina: el ancho visible en la foto es igual en los tres grupos (`01c_ancho_visible.ipynb`).
 - [ ] **2. Mapas de color**
 - [ ] **3. Mejoramiento y restauración**
 - [ ] **4. Realce de vasos y textura**
