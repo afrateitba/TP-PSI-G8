@@ -57,3 +57,27 @@ def accuracy(pred, truth, region=None) -> float:
     """Fracción de píxeles bien clasificados. Solo para comparar con la literatura."""
     c = confusion(pred, truth, region)
     return _ratio(c["tp"] + c["tn"], sum(c.values()))
+
+
+def auc(score: np.ndarray, truth: np.ndarray, region: np.ndarray | None = None) -> float:
+    """Área bajo la curva de sensibilidad contra falsos positivos de un mapa continuo.
+
+    Es la probabilidad de que un píxel de vaso al azar tenga un `score` más
+    alto que un píxel de fondo al azar; los empates cuentan la mitad. Más alto
+    tiene que querer decir "más vaso": para un mapa donde los vasos son
+    oscuros, pasar -mapa. Se calcula con rangos (prueba de Mann–Whitney).
+    """
+    from scipy.stats import rankdata
+
+    if score.shape != truth.shape:
+        raise ValueError(f"Tamaños distintos: {score.shape} y {truth.shape}")
+    if region is not None:
+        score, truth = score[region], truth[region]
+    s = np.asarray(score, dtype=np.float64).ravel()
+    t = np.asarray(truth, dtype=bool).ravel()
+    n_pos = int(t.sum())
+    n_neg = t.size - n_pos
+    if n_pos == 0 or n_neg == 0:
+        raise ValueError("La región tiene que tener vasos y fondo")
+    ranks = rankdata(s, method="average")
+    return float((ranks[t].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))

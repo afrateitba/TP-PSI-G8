@@ -51,3 +51,18 @@ WIDTH_LIMITS_REL = (WIDTH_LIMITS_PX[0] / FOV_DIAMETER_REF, WIDTH_LIMITS_PX[1] / 
 # da Dice >= 0,9993 en las 30 de desarrollo y >= 0,996 en 9 variantes que
 # simulan otras cámaras (notebooks/01b_campo_de_vision.ipynb; desvío 14.2).
 USE_AUTO_FOV = True
+
+# --- Mapas de color (etapa 2) ----------------------------------------------
+# Mapa principal provisional: tercera componente principal del color por
+# imagen, con vasos claros (notebooks/02_mapas_color.ipynb). Signo de las
+# componentes: "vessels" (orientadas por la oscuridad local del verde), que
+# no invierte ninguna imagen de desarrollo ni con la foto sobreexpuesta
+# (notebooks/02b_signo_componentes.ipynb).
+PCA_SIGN_RULE = "vessels"
+# Cierre de la etapa 2 (notebooks/02c_cierre_mapas.ipynb): la tercera componente
+# gana en las 5 vueltas de la validación cruzada por personas. Para las
+# etapas 4 y 5 pasan los mapas que le suman al menos 0,01 de área combinados
+# con ella (corte elegido después de ver los resultados, declarado).
+COLOR_MAIN_MAP = "PC3"
+COLOR_REFERENCE_MAP = "Verde"
+COLOR_EXTRA_MAPS = ["PC2", "Verde", "Azul", "Escala de grises"]

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.metrics import accuracy, confusion, dice, matthews, sensitivity, specificity
+from src.metrics import accuracy, auc, confusion, dice, matthews, sensitivity, specificity
 
 
 def _example(tp, fn, fp, tn):
@@ -50,3 +50,21 @@ def test_empty_cases_give_nan_and_bad_shape_fails():
     assert np.isnan(matthews(empty, empty))
     with pytest.raises(ValueError):
         confusion(empty, np.zeros((4, 5), bool))
+
+
+def test_auc_known_values():
+    truth = np.array([1, 1, 0, 0, 0], bool)
+    assert auc(np.array([5, 4, 3, 2, 1.0]), truth) == pytest.approx(1)
+    assert auc(np.array([1, 2, 3, 4, 5.0]), truth) == pytest.approx(0)
+    assert auc(np.ones(5), truth) == pytest.approx(0.5)            # todo empatado
+    # vasos 3 y 1, fondo 2, 0, 0: 3 le gana a los tres; 1 le gana a dos y pierde con uno
+    assert auc(np.array([3, 1, 2, 0, 0.0]), truth) == pytest.approx(5 / 6)
+
+
+def test_auc_region_and_errors():
+    truth = np.array([1, 0, 0, 1], bool)
+    score = np.array([0.9, 0.1, 0.95, 0.8])
+    region = np.array([True, True, False, True])
+    assert auc(score, truth, region) == pytest.approx(1)
+    with pytest.raises(ValueError):
+        auc(score, np.zeros(4, bool))
