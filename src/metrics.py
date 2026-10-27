@@ -135,7 +135,9 @@ def centerline_sensitivity_by_class(pred, truth, limits, region=None) -> dict[st
 # --- Área bajo la curva por grosor (plan, secciones 4 y 5) ---------------------
 # La misma área de `auc`, pero solo con los vasos finos: los medianos y gruesos
 # no cuentan ni como vaso ni como fondo (etapas 3 y 4).
-def auc_finos(score, truth, region=None, limits=None):
+
+def auc_thin(score: np.ndarray, truth: np.ndarray, region: np.ndarray | None = None,
+             limits: tuple[float, float] | None = None) -> float:
     """Área bajo la curva solo con los vasos finos (plan, sección 4).
 
     Los vasos son los píxeles de `truth` con ancho <= limits[0] (cada píxel
@@ -151,8 +153,8 @@ def auc_finos(score, truth, region=None, limits=None):
     t = truth.astype(bool)
     if region is not None:
         t = t & region
-    finos = t & (width_map(t) <= limits[0])
-    zona = ~(t & ~finos)                      # todo menos los vasos no finos
+    thin = t & (width_map(t) <= limits[0])
+    zone = ~(t & ~thin)                       # todo menos los vasos no finos
     if region is not None:
-        zona &= region
-    return auc(score, finos, zona)
+        zone &= region
+    return auc(score, thin, zone)
