@@ -9,6 +9,7 @@ import numpy as np
 from scipy import ndimage as ndi
 from skimage.filters import frangi
 from skimage.morphology import white_tophat, disk
+from scipy.signal import oaconvolve
 
 # Sentido de cada mapa de la etapa 2: True si los vasos son claros.
 # Las componentes principales quedan con vasos claros por la regla de signo
@@ -63,3 +64,77 @@ def frangi_realce(mapa, sigmas_px):
     """
     return frangi(np.asarray(mapa, dtype=np.float32), sigmas=list(sigmas_px),
                   black_ridges=False).astype(np.float32)
+
+
+# --- Filtros orientados: detector de líneas y filtro adaptado ----------------
+N_ORIENTACIONES = 12   # cada 15°
+
+
+def _ejes(radio, theta):
+    """Coordenadas de un núcleo de (2·radio+1)² píxeles rotadas un ángulo `theta`.
+
+    `u` es la distancia a través del vaso; `v`, a lo largo del vaso.
+    """
+    y, x = np.mgrid[-radio:radio + 1, -radio:radio + 1].astype(np.float32)
+    u = x * np.cos(theta) + y * np.sin(theta)
+    v = -x * np.sin(theta) + y * np.cos(theta)
+    return u, v
+
+
+def _maximo_orientado(mapa, nucleos):
+    """Mayor respuesta, píxel a píxel, entre los núcleos (uno por orientación).
+
+    Antes de convolucionar se extiende la imagen por reflexión: con el relleno
+    con ceros por defecto, los bordes de la imagen (donde el campo de visión
+    toca el borde de la foto, arriba y abajo) darían respuestas falsas.
+    """
+    mapa = np.asarray(mapa, dtype=np.float32)
+    radio = max(k.shape[0] for k in nucleos) // 2
+    extendido = np.pad(mapa, radio, mode="reflect")
+    salida = None
+    for k in nucleos:
+        r = oaconvolve(extendido, k, mode="same")[radio:-radio, radio:-radio].astype(np.float32)
+        salida = r if salida is None else np.maximum(salida, r)
+    return salida
+
+
+def nucleo_adaptado(sigma_px, largo_px, theta):
+    """Núcleo del filtro adaptado (Chaudhuri et al., 1989) para vasos claros.
+
+    Perfil gaussiano de desvío `sigma_px` a través del vaso, constante a lo
+    largo de `largo_px`, recortado en ±3σ y con media cero (un fondo plano da 0).
+    """
+    radio = int(np.ceil(max(3 * sigma_px, largo_px / 2))) + 1
+    u, v = _ejes(radio, theta)
+    soporte = (np.abs(u) <= 3 * sigma_px) & (np.abs(v) <= largo_px / 2)
+    k = np.exp(-u ** 2 / (2 * sigma_px ** 2))
+    k[soporte] -= k[soporte].mean()
+    k[~soporte] = 0
+    return (k / np.abs(k).sum()).astype(np.float32)
+
+
+def filtro_adaptado(mapa, sigma_px, largo_px, n_orientaciones=N_ORIENTACIONES):
+    """Filtro adaptado en `n_orientaciones` ángulos; para cada píxel, la mayor respuesta."""
+    angulos = np.arange(n_orientaciones) * np.pi / n_orientaciones
+    return _maximo_orientado(mapa, [nucleo_adaptado(sigma_px, largo_px, t) for t in angulos])
+
+
+def nucleo_linea(largo_px, theta):
+    """Segmento de largo `largo_px` y un píxel de ancho, normalizado a suma 1."""
+    radio = int(np.ceil(largo_px / 2))
+    u, v = _ejes(radio, theta)
+    k = ((np.abs(u) <= 0.5) & (np.abs(v) <= largo_px / 2)).astype(np.float32)
+    return k / k.sum()
+
+
+def detector_lineas(mapa, largo_px, n_orientaciones=N_ORIENTACIONES):
+    """Detector de líneas (Ricci y Perfetti, 2007) para vasos claros.
+
+    Promedio sobre el mejor segmento de largo `largo_px` menos el promedio de
+    la ventana cuadrada del mismo lado. Un fondo plano da 0.
+    """
+    mapa = np.asarray(mapa, dtype=np.float32)
+    angulos = np.arange(n_orientaciones) * np.pi / n_orientaciones
+    lineas = _maximo_orientado(mapa, [nucleo_linea(largo_px, t) for t in angulos])
+    lado = 2 * int(np.ceil(largo_px / 2)) + 1
+    return lineas - ndi.uniform_filter(mapa, size=lado)

@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from src.enhance import (escala_px, frangi_realce, orientar, rellenar_fuera,
-                         sigma_para_ancho, sombrero_de_copa)
+from src.enhance import (detector_lineas, escala_px, filtro_adaptado, frangi_realce,
+                         orientar, rellenar_fuera, sigma_para_ancho, sombrero_de_copa)
 
 
 def linea_sintetica(ancho=5, oscura=True, n=101):
@@ -69,3 +69,46 @@ def test_frangi_no_marca_el_borde_si_se_rellena():
     crudo = frangi_realce(img, [2.0])
     relleno = frangi_realce(rellenar_fuera(img, region), [2.0])
     assert relleno[borde].max() < 0.1 * crudo[borde].max()
+
+
+   # --- Detector de líneas y filtro adaptado -----------------------------------
+
+def linea_diagonal(ancho=5, n=101):
+    """Línea clara a 45°, de ancho aproximado `ancho`, sobre fondo plano."""
+    y, x = np.mgrid[:n, :n]
+    linea = np.abs(x - y) / np.sqrt(2) <= ancho / 2
+    return np.where(linea, 100.0, 50.0).astype(np.float32), linea
+
+
+@pytest.mark.parametrize("filtro", [
+    lambda m: filtro_adaptado(m, sigma_px=2.5, largo_px=9),
+    lambda m: detector_lineas(m, largo_px=15),
+])
+def test_orientado_resalta_la_linea_y_no_el_fondo(filtro):
+    img, linea = linea_sintetica(ancho=5, oscura=False)
+    salida = filtro(img)
+    c = img.shape[0] // 2
+    assert salida[20:-20, c].min() > 1                      # centro de la línea: positivo
+    assert np.abs(salida[20:-20, 5:c - 20]).max() < 1e-3    # fondo plano, también junto al borde: cero
+
+
+@pytest.mark.parametrize("filtro", [
+    lambda m: filtro_adaptado(m, sigma_px=2.5, largo_px=9),
+    lambda m: detector_lineas(m, largo_px=15),
+])
+def test_orientado_funciona_en_diagonal(filtro):
+    vertical, _ = linea_sintetica(ancho=5, oscura=False)
+    diagonal, _ = linea_diagonal(ancho=5)
+    c = vertical.shape[0] // 2
+    rv = filtro(vertical)[c, c]
+    rd = filtro(diagonal)[c, c]
+    assert rd == pytest.approx(rv, rel=0.25)                # no depende de la orientación
+
+
+def test_adaptado_ignora_estructuras_anchas():
+    angosta, _ = linea_sintetica(ancho=5, oscura=False)
+    ancha, _ = linea_sintetica(ancho=31, oscura=False)
+    c = angosta.shape[0] // 2
+    r_angosta = filtro_adaptado(angosta, 2.5, 9)[c, c]
+    r_ancha = filtro_adaptado(ancha, 2.5, 9)[c, c]
+    assert r_ancha < 0.1 * r_angosta                        # el centro de una meseta da casi 0 
