@@ -258,3 +258,40 @@ def agrandar(salida, forma):
         return salida
     return resize(salida, forma, order=1, preserve_range=True,
                   anti_aliasing=False).astype(np.float32)
+
+
+# --- Filtros con los parámetros de la etapa 4 ---------------------------------
+
+def aplicar_filtro(nombre, mapa, diametro_fov):
+    """Aplica el filtro `nombre` (config.REALCE_FILTROS) con las escalas de la etapa 4.
+
+    Las escalas están en `config` en proporción al diámetro del campo de
+    visión y se pasan a píxeles con `diametro_fov` (el de la foto con que se
+    trabaja), así que se achican solas al reducir la resolución. Los filtros
+    orientados se aplican en todas las escalas y se toma, en cada píxel, la
+    mayor respuesta; Frangi recibe todas las σ juntas.
+    """
+    from . import config as c
+
+    anchos = [escala_px(r, diametro_fov) for r in c.REALCE_ANCHOS_REL]
+    sigmas = [max(sigma_para_ancho(w), c.REALCE_SIGMA_MIN_PX) for w in anchos]
+    mapa = np.asarray(mapa, dtype=np.float32)
+
+    if nombre == "sin filtro":
+        return mapa
+    if nombre == "sombrero de copa":
+        return sombrero_de_copa(mapa, escala_px(c.REALCE_RADIO_SOMBRERO_REL, diametro_fov))
+    if nombre == "Frangi":
+        return frangi_realce(mapa, sigmas)
+    if nombre == "filtro adaptado":
+        salidas = (filtro_adaptado(mapa, s, c.REALCE_LARGO_ADAPTADO * s) for s in sigmas)
+    elif nombre == "Gabor":
+        salidas = (gabor_realce(mapa, s, c.REALCE_ELONGACION_GABOR) for s in sigmas)
+    elif nombre == "detector de líneas":
+        salidas = (detector_lineas(mapa, max(c.REALCE_LARGO_LINEAS * w, 3)) for w in anchos)
+    else:
+        raise ValueError(f"Filtro desconocido: {nombre!r}")
+    salida = None
+    for s in salidas:
+        salida = s if salida is None else np.maximum(salida, s)
+    return salida
