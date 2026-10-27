@@ -36,6 +36,12 @@ SAME_PERSON_MAX_GAP_MIN = 10
 
 # --- Partición -----------------------------------------------------------
 SEED = 2026
+
+# --- Elección entre candidatas (esquema 5.3; plan, desvío 14.4) -----------
+# Una candidata es no inferior si el límite inferior del intervalo al 95 %
+# de (candidata − mejor) es >= −margen.
+NONINF_MARGIN_AUC = 0.02
+NONINF_MARGIN_MATTHEWS = 0.03   # también para el Dice de línea central
 TEST_PER_GROUP = 5   # 15 imágenes de prueba, 30 de desarrollo
 
 # --- Calibración (etapa 1, notebooks/01_contexto.ipynb) -------------------

@@ -137,3 +137,26 @@ Ninguna decisión del algoritmo se tomó ni se va a tomar con esos números, y n
 En la etapa 1 (`notebooks/01_contexto.ipynb`) ninguna candidata de detección automática cumplió la regla (Dice ≥ 0,99 en las 30 imágenes de desarrollo): con 14_h, de periferia oscura, el umbral de Otsu sobre el rojo quedó en 0,954. Con ese resultado a la vista se agregó una tercera candidata, `detect_fov_robust` (umbral de Otsu sobre el logaritmo del brillo, con controles para imágenes sin borde negro), y un criterio extra de robustez: Dice ≥ 0,99 en 9 variantes que simulan otras cámaras (exposición, viñeteo, resolución, escala de grises, fondo gris, etiqueta, compresión y recorte sin borde).
 
 Resultado (`notebooks/01b_campo_de_vision.ipynb`): peor Dice 0,9993 en las 30 imágenes y 0,9964 en el peor caso de las variantes. Se adopta. Efecto sobre prueba: tal como prevé la sección 2, el algoritmo **no recibe la máscara del campo de visión** y la detecta solo. La evaluación sigue usando la máscara de la base (sección 3). No se calculó nada sobre las imágenes de prueba.
+
+### 14.3 (27/10/2026, antes de tener máscaras del algoritmo) Medidas de línea central
+
+**Motivo.** En `notebooks/01c_ancho_visible.ipynb` (desarrollo) el ancho visible de los vasos es igual en los tres grupos, pero los expertos marcaron los de sanos relativamente más anchos (cociente marcado / visible 0,80 contra 0,52 en retinopatía; diferencia 0,28, intervalo 0,20 a 0,37). Las medidas por píxel de la sección 4 tratan distinto a cada grupo por la forma de marcar.
+
+**Qué se agrega** (`src/metrics.py`), calculado igual que el resto, por imagen y dentro del campo de visión de la base:
+- **sensibilidad de línea central:** fracción de la línea central de los expertos que cae dentro de la máscara del algoritmo;
+- **precisión de línea central:** fracción de la línea central del algoritmo que cae dentro de la máscara de los expertos;
+- **Dice de línea central:** 2 · precisión · sensibilidad / (precisión + sensibilidad) (Shit et al., 2021);
+- **sensibilidad de línea central por grosor:** la anterior para vasos finos, medianos y gruesos, con la clase de cada punto según su ancho marcado y los límites de la sección 5.
+
+**Dónde se usa.**
+1. Sección 4 y resultados secundarios (sección 11, puntos 1 a 3): las cuatro medidas se informan junto a las de píxeles, para el algoritmo final y la referencia clásica, por grupo y por grosor.
+2. Etapa 5: la regla que limita la limpieza ("la sensibilidad en vasos finos no cae más de 0,02") se mide sobre la línea central.
+3. Etapa 6: la vuelta de corrección por un subgrupo se dispara solo si la diferencia aparece también en el Dice de línea central.
+
+**Qué no cambia.** La medida principal sigue siendo Matthews y la pregunta principal (sección 10) no cambia: compara dos métodos sobre las mismas imágenes, así que la forma de marcar pesa igual en los dos. Las medidas de línea central no se usan para elegir mapas ni pasos en las etapas 2 a 4.
+
+### 14.4 (27/10/2026, antes de tener máscaras del algoritmo) Margen de no inferioridad para Matthews
+
+**Motivo.** En `notebooks/05a_margen_matthews.ipynb` (desarrollo, segmentación tosca que no es candidata) el intervalo al 95 % de la diferencia de Matthews entre candidatas cercanas tiene un semiancho de 0,0002 a 0,004, pero entre métodos distintos es de 0,025 (0,033 en el análisis de la partición del 21/10). Con un margen de −0,02, un método distinto e igual de bueno nunca podría declararse no inferior, y la regla de elegir la candidata más simple entre las no inferiores no funcionaría cuando se comparan métodos distintos.
+
+**Cambio.** Para Matthews y para el Dice de línea central, el margen pasa a **−0,03**. Para el área bajo la curva sigue en −0,02 (sus intervalos son de ± 0,006 a 0,008). Afecta las elecciones en desarrollo (esquema, secciones 5.3 y 5.4); no cambia la pregunta principal en prueba (sección 10), que no usa margen.

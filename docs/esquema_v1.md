@@ -120,10 +120,10 @@ Cada etapa termina en una **decisión sobre el algoritmo** (se adopta, se descar
 **Etapa 5 — Segmentación.**
 - **Combinación** (candidatas, de la más simple a la más compleja): el mejor mapa solo; promedio con pesos de los mapas normalizados; regresión logística por píxel con los mapas como entradas. Los pesos y la regresión se ajustan con validación cruzada por personas.
 - **Umbral:** un valor único para todas las imágenes, o una regla por imagen (Otsu, o un porcentaje fijo de píxeles). El punto se elige con el índice de Youden o con el máximo de Matthews.
-- **Limpieza:** se quitan las manchas de menos de cierto tamaño. El tamaño se elige en desarrollo y se acepta solo si la sensibilidad en vasos finos no cae más de 0,02.
+- **Limpieza:** se quitan las manchas de menos de cierto tamaño. El tamaño se elige en desarrollo y se acepta solo si la sensibilidad en vasos finos no cae más de 0,02. *(27/10, desvío 14.3 del plan: esa sensibilidad se mide sobre la línea central, `centerline_sensitivity_by_class`, para que no dependa del ancho marcado.)*
 - **Medida principal:** Matthews por imagen. **Desempate:** la candidata con mejor concordancia de tortuosidad con los expertos.
 
-**Etapa 6 — Análisis de errores.** Errores por grosor del vaso; por zona (cerca del disco óptico, ubicado como la zona más brillante, contra el resto); por nivel de compresión; por grupo. La base no marca lesiones, así que los falsos positivos de la retinopatía se revisan a ojo. **Disparador fijado de antemano:** si un subgrupo queda peor que el resto en Matthews y el intervalo de confianza al 95 % de la diferencia no incluye el cero, se prueba **una** corrección dirigida, con las reglas de la etapa que corresponda. Se declara como desvío.
+**Etapa 6 — Análisis de errores.** Errores por grosor del vaso; por zona (cerca del disco óptico, ubicado como la zona más brillante, contra el resto); por nivel de compresión; por grupo. La base no marca lesiones, así que los falsos positivos de la retinopatía se revisan a ojo. **Disparador fijado de antemano:** si un subgrupo queda peor que el resto en Matthews y el intervalo de confianza al 95 % de la diferencia no incluye el cero, se prueba **una** corrección dirigida, con las reglas de la etapa que corresponda. Se declara como desvío. *(27/10, desvío 14.3 del plan: la corrección se dispara solo si la diferencia aparece también en el Dice de línea central; si aparece solo en Matthews, se atribuye a la forma de marcar de los expertos y se informa, sin corregir.)*
 
 **Etapa 7 — Medidas clínicas.**
 - **Medidas:** proporción de vasos en el campo de visión; longitud total del esqueleto dividida por el diámetro del campo de visión; tortuosidad.
@@ -152,7 +152,7 @@ Cada etapa termina en una **decisión sobre el algoritmo** (se adopta, se descar
 - **Siempre el tamaño del efecto con su intervalo.** "Sin diferencia" no quiere decir "iguales".
 
 **5.3 Elegir entre candidatas**
-1. Grupo: las candidatas no inferiores a la mejor en la medida de la etapa (límite inferior del intervalo de confianza al 95 % de la diferencia ≥ −0,02).
+1. Grupo: las candidatas no inferiores a la mejor en la medida de la etapa (límite inferior del intervalo de confianza al 95 % de la diferencia ≥ −0,02 en el área bajo la curva y ≥ −0,03 en Matthews y en el Dice de línea central; desvío 14.4 del plan, `notebooks/05a_margen_matthews.ipynb`).
 2. Dentro del grupo, la más simple según un orden fijado antes de correr.
 3. Control: validación cruzada por personas (5 grupos de personas, repartiendo los tres grupos clínicos). Se reporta el optimismo (medida al elegir menos medida afuera) y si la elección es estable entre grupos.
 
