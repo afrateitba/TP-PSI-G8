@@ -130,3 +130,29 @@ def centerline_sensitivity_by_class(pred, truth, limits, region=None) -> dict[st
     lo, hi = limits
     classes = {"fino": w <= lo, "mediano": (w > lo) & (w <= hi), "grueso": w > hi}
     return {k: _ratio(np.count_nonzero(hit & c), np.count_nonzero(c)) for k, c in classes.items()}
+
+
+# --- Área bajo la curva por grosor (plan, secciones 4 y 5) ---------------------
+# La misma área de `auc`, pero solo con los vasos finos: los medianos y gruesos
+# no cuentan ni como vaso ni como fondo (etapas 3 y 4).
+def auc_finos(score, truth, region=None, limits=None):
+    """Área bajo la curva solo con los vasos finos (plan, sección 4).
+
+    Los vasos son los píxeles de `truth` con ancho <= limits[0] (cada píxel
+    toma el ancho del punto más cercano de la línea central,
+    vessels.width_map). Los vasos medianos y gruesos se sacan de la región:
+    no cuentan ni como vaso ni como fondo. Así se comparan los finos contra
+    todo el fondo. `limits` por defecto: config.WIDTH_LIMITS_PX.
+    """
+    from .vessels import width_map
+
+    if limits is None:
+        from .config import WIDTH_LIMITS_PX as limits
+    t = truth.astype(bool)
+    if region is not None:
+        t = t & region
+    finos = t & (width_map(t) <= limits[0])
+    zona = ~(t & ~finos)                      # todo menos los vasos no finos
+    if region is not None:
+        zona &= region
+    return auc(score, finos, zona)
