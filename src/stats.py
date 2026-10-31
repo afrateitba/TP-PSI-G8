@@ -47,3 +47,34 @@ def fisher_direction(x: np.ndarray, y: np.ndarray, ridge: float = 1e-6) -> np.nd
     cov = np.atleast_2d(cov) + ridge * np.eye(x.shape[1])
     w = np.linalg.solve(cov, a.mean(axis=0) - b.mean(axis=0))
     return w / np.linalg.norm(w)
+
+
+def fit_logistic(x: np.ndarray, y: np.ndarray, ridge: float = 1e-3,
+                 max_iter: int = 50, tol: float = 1e-8) -> np.ndarray:
+    """Regresión logística por Newton (mínimos cuadrados reponderados), con un poco de cresta.
+
+    `x` tiene una fila por píxel y una columna por mapa; `y` es True en los
+    vasos. Devuelve los coeficientes (ordenada al origen primero). La cresta
+    no penaliza la ordenada y evita que los coeficientes diverjan si las
+    clases se separan del todo.
+    """
+    xa = np.c_[np.ones(len(x)), np.asarray(x, dtype=np.float64)]
+    y = np.asarray(y, dtype=np.float64)
+    w = np.zeros(xa.shape[1])
+    pen = ridge * np.eye(xa.shape[1])
+    pen[0, 0] = 0.0
+    for _ in range(max_iter):
+        p = 1.0 / (1.0 + np.exp(-np.clip(xa @ w, -35, 35)))
+        grad = xa.T @ (y - p) - pen @ w
+        hess = xa.T @ (xa * (p * (1 - p))[:, None]) + pen
+        step = np.linalg.solve(hess, grad)
+        w += step
+        if np.max(np.abs(step)) < tol:
+            break
+    return w
+
+
+def predict_logistic(x: np.ndarray, w: np.ndarray) -> np.ndarray:
+    """Probabilidad de vaso según los coeficientes de fit_logistic."""
+    z = w[0] + np.asarray(x, dtype=np.float64) @ w[1:]
+    return 1.0 / (1.0 + np.exp(-np.clip(z, -35, 35)))

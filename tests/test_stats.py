@@ -51,3 +51,23 @@ def test_fisher_direction_points_to_vessels():
     y = np.r_[np.zeros(5000, bool), np.ones(500, bool)]
     w = fisher_direction(x, y)
     assert w[0] > 0.95 and abs(w[1]) < 0.15
+
+
+def test_fit_logistic_recovers_coefficients():
+    from src.stats import fit_logistic, predict_logistic
+    rng = np.random.default_rng(1)
+    x = rng.normal(size=(20000, 2))
+    true = np.array([-1.0, 2.0, 0.0])          # solo la primera columna importa
+    p = 1 / (1 + np.exp(-(true[0] + x @ true[1:])))
+    y = rng.random(len(p)) < p
+    w = fit_logistic(x, y, ridge=1e-6)
+    assert np.allclose(w, true, atol=0.1)
+    assert np.all((predict_logistic(x, w) >= 0) & (predict_logistic(x, w) <= 1))
+
+
+def test_fit_logistic_separable_does_not_explode():
+    from src.stats import fit_logistic
+    x = np.r_[np.linspace(-3, -1, 50), np.linspace(1, 3, 50)][:, None]
+    y = np.r_[np.zeros(50, bool), np.ones(50, bool)]
+    w = fit_logistic(x, y, ridge=1e-2)
+    assert np.all(np.isfinite(w)) and w[1] > 0

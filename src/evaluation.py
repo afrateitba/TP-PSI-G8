@@ -105,3 +105,19 @@ def map_images(func, image_ids, workers: int = 4) -> list:
     from joblib import Parallel, delayed
 
     return Parallel(n_jobs=workers)(delayed(func)(i) for i in image_ids)
+
+
+def weighted_matthews(pred: np.ndarray, truth: np.ndarray, weights: np.ndarray) -> float:
+    """Matthews con pesos por píxel: para estimarlo en una muestra que no tiene las proporciones reales.
+
+    En la muestra de evaluación el fondo está submuestreado; con peso
+    1 / EVAL_BG_FRACTION en el fondo y 1 en los vasos se recuperan las
+    cantidades reales.
+    """
+    pred, truth = np.asarray(pred, bool), np.asarray(truth, bool)
+    tp = weights[pred & truth].sum()
+    fp = weights[pred & ~truth].sum()
+    fn = weights[~pred & truth].sum()
+    tn = weights[~pred & ~truth].sum()
+    den = np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+    return float((tp * tn - fp * fn) / den) if den else float("nan")

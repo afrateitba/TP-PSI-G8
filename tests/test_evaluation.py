@@ -69,3 +69,14 @@ def test_load_sample_is_cached_and_fixed(tmp_path):
     b = load_sample("01_h", cache_dir=tmp_path)
     assert np.array_equal(a.rows, b.rows) and np.array_equal(a.cls, b.cls)
     assert 0.05 < a.truth.mean() < 0.6
+
+
+def test_weighted_matthews_matches_full_count():
+    from src.evaluation import weighted_matthews
+    from src.metrics import matthews
+    rng = np.random.default_rng(4)
+    truth = rng.random(200000) < 0.1
+    pred = np.where(truth, rng.random(truth.size) < 0.8, rng.random(truth.size) < 0.05)
+    keep = truth | (rng.random(truth.size) < 0.2)           # todos los vasos y 20 % del fondo
+    w = np.where(truth[keep], 1.0, 5.0)
+    assert weighted_matthews(pred[keep], truth[keep], w) == pytest.approx(matthews(pred, truth), abs=0.01)
