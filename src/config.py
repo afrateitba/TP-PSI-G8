@@ -65,13 +65,16 @@ USE_AUTO_FOV = True
 # no invierte ninguna imagen de desarrollo ni con la foto sobreexpuesta
 # (notebooks/02b_signo_componentes.ipynb).
 PCA_SIGN_RULE = "vessels"
-# Cierre de la etapa 2 (notebooks/02c_cierre_mapas.ipynb): la tercera componente
-# gana en las 5 vueltas de la validación cruzada por personas. Para las
-# etapas 4 y 5 pasan los mapas que le suman al menos 0,01 de área combinados
-# con ella (corte elegido después de ver los resultados, declarado).
-COLOR_MAIN_MAP = "PC3"
+# Elección del mapa (etapa 2d, notebooks/02d_mapas_corregidos.ipynb, después
+# de la etapa 3): con el fondo corregido el verde es el mejor mapa (0,942) en
+# las 5 vueltas, y ningún otro le suma 0,01 al combinarlo. Reemplaza la
+# elección de la etapa 2c (tercera componente), que comparaba mapas crudos.
+COLOR_MAIN_MAP = "Verde"
 COLOR_REFERENCE_MAP = "Verde"
-COLOR_EXTRA_MAPS = ["PC2", "Verde", "Azul", "Escala de grises"]
+COLOR_EXTRA_MAPS: list[str] = []
+
+# Las etapas 4 y 5 (notebooks/04_realce.ipynb, 05_segmentacion.ipynb) se corrieron
+# con la tercera componente y el verde; el algoritmo final usa el verde.
 
 
 # --- Realce de vasos y textura (etapa 4, notebooks/04_realce.ipynb) --------
@@ -94,3 +97,25 @@ ENHANCE_FACTORS = (1, 2, 4)         # resolución original, mitad y cuarta parte
 # direcciones y ventana de 15 píxeles a resolución original.
 GLCM_LEVELS = 8
 GLCM_WINDOW_REL = 15 / FOV_DIAMETER_REF
+
+# --- Mejoramiento y restauración (etapa 3b) --------------------------------
+# Se calcula a 1/STAGE3_FACTOR de la resolución y se evalúa a la original.
+STAGE3_FACTOR = 2
+# Ventana de la corrección del fondo: unas 3 veces el vaso más grueso (99 %
+# de los anchos: 26 píxeles), en proporción al diámetro del campo de visión.
+BACKGROUND_WINDOW_REL = 0.024
+HOMOMORPHIC_SIGMA_REL = 0.01
+CLAHE_CLIP = 0.01
+CLAHE_KERNEL_FRAC = 0.125
+WIENER_SIZE = 5
+WIENER_DEBLUR_SIGMAS = (1.0, 2.0)       # píxeles de la resolución de trabajo
+WIENER_DEBLUR_BALANCES = (0.01, 0.1)
+# Cadena que mejor le funciona al verde en la etapa 3b (notebooks/03b_restauracion.ipynb): suavizado
+# de bloques (foto original) → Wiener contra el ruido → corrección del fondo.
+# Wiener contra el desenfoque se probó y no se adopta (empeora 0,035).
+PREPROCESS_CHAIN = ("bloques", "wiener_ruido", "fondo")
+
+# --- Evaluación rápida en desarrollo (src/evaluation.py) ------------------
+# Fracción del fondo que entra en la muestra fija de evaluación (todos los
+# vasos entran siempre). La evaluación final en prueba usa todos los píxeles.
+EVAL_BG_FRACTION = 0.2

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.metrics import (accuracy, auc, centerline_dice, centerline_precision, centerline_sensitivity,
+from src.metrics import (accuracy, auc, auc_by_subset, centerline_dice, centerline_precision, centerline_sensitivity,
                          centerline_sensitivity_by_class, confusion, dice, matthews, sensitivity,
                          specificity)
 
@@ -111,3 +111,27 @@ def test_centerline_by_class():
     assert by["fino"] < 0.05          # solo las puntas de la barra mediana miden menos de 3,47
     assert by["mediano"] == pytest.approx(1)
     assert by["grueso"] == pytest.approx(1)
+
+
+def test_auc_by_subset_matches_auc_and_subsets():
+    rng = np.random.default_rng(5)
+    truth = rng.random(2000) < 0.2
+    thin = truth & (rng.random(2000) < 0.5)
+    score = rng.normal(size=2000) + 1.5 * truth - 1.0 * thin   # los finos se separan peor
+    out = auc_by_subset(score, truth, {"finos": thin})
+    assert out["todos"] == pytest.approx(auc(score, truth))
+    assert out["finos"] == pytest.approx(auc(score[~truth | thin], thin[~truth | thin]))
+    assert out["finos"] < out["todos"]
+
+
+def test_auc_by_subset_matches_auc_thin():
+    from src.metrics import auc_thin
+    rng = np.random.default_rng(7)
+    truth = np.zeros((60, 80), bool)
+    truth[10:11, 5:75] = True          # fino
+    truth[30:39, 5:75] = True          # grueso
+    score = truth * 1.0 + rng.normal(0, 0.7, truth.shape)
+    from src.vessels import width_map
+    thin = truth & (width_map(truth) <= 3.47)
+    assert auc_by_subset(score, truth, {"finos": thin})["finos"] == pytest.approx(
+        auc_thin(score, truth, limits=(3.47, 9.0)), abs=1e-9)

@@ -172,3 +172,32 @@ def auc_thin(score: np.ndarray, truth: np.ndarray, region: np.ndarray | None = N
     if masks is None:
         masks = thin_masks(truth, region, limits)
     return auc(score, *masks)
+
+
+def auc_by_subset(score: np.ndarray, truth: np.ndarray, subsets: dict[str, np.ndarray],
+                  region: np.ndarray | None = None) -> dict[str, float]:
+    """Área bajo la curva de todos los vasos y de subconjuntos de vasos contra todo el fondo.
+
+    Con el subconjunto de los vasos finos da lo mismo que auc_thin (los demás
+    vasos no cuentan), pero ordena una sola vez para todos los subconjuntos.
+
+    `subsets` son máscaras del tamaño de la imagen (por ejemplo, los vasos
+    finos). Con un solo ordenamiento: para cada píxel de vaso, la cantidad de
+    fondo con puntaje menor es su rango entre todos menos su rango entre los
+    vasos. La entrada "todos" coincide con auc().
+    """
+    from scipy.stats import rankdata
+
+    if region is None:
+        region = np.ones(truth.shape, bool)
+    s = np.asarray(score[region], dtype=np.float64)
+    t = np.asarray(truth[region], dtype=bool)
+    n_neg = int((~t).sum())
+    if t.sum() == 0 or n_neg == 0:
+        raise ValueError("La región tiene que tener vasos y fondo")
+    below = rankdata(s)[t] - rankdata(s[t])
+    out = {"todos": float(below.mean() / n_neg)}
+    for name, sub in subsets.items():
+        sel = np.asarray(sub[region], dtype=bool)[t]
+        out[name] = float(below[sel].mean() / n_neg) if sel.any() else float("nan")
+    return out

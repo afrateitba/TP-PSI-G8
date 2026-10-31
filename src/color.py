@@ -137,3 +137,29 @@ def color_maps_at_scale(rgb: np.ndarray, factor: int, names: list[str] | None = 
                 .astype(np.float32)
                 for k, v in color_maps(small, pca_sign=pca_sign).items()}
     return maps if names is None else {k: maps[k] for k in names}
+
+
+NONLINEAR_NAMES = ["Verde / rojo", "Verde / azul", "Cromaticidad verde", "Cromaticidad roja", "Saturación"]
+
+
+def nonlinear_maps(rgb: np.ndarray, eps: float = 1.0 / 255) -> dict[str, np.ndarray]:
+    """Mapas de color no lineales (etapa 2e).
+
+    - Cocientes verde / rojo y verde / azul: el rojo y el azul llevan sobre todo
+      la iluminación y el pigmento del fondo; dividir los cancela sin estimarlos.
+    - Cromaticidades: cada canal dividido por la suma de los tres; separan el
+      color del brillo.
+    - Saturación del espacio matiz–saturación–brillo: (máximo − mínimo) / máximo.
+    `eps` evita dividir por cero afuera del campo de visión.
+    """
+    img = rgb.astype(np.float32) / 255.0
+    r, g, b = img[..., 0], img[..., 1], img[..., 2]
+    total = r + g + b + eps
+    mx, mn = img.max(axis=2), img.min(axis=2)
+    return {
+        "Verde / rojo": g / (r + eps),
+        "Verde / azul": g / (b + eps),
+        "Cromaticidad verde": g / total,
+        "Cromaticidad roja": r / total,
+        "Saturación": (mx - mn) / (mx + eps),
+    }
