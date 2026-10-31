@@ -119,3 +119,16 @@ PREPROCESS_CHAIN = ("bloques", "wiener_ruido", "fondo")
 # Fracción del fondo que entra en la muestra fija de evaluación (todos los
 # vasos entran siempre). La evaluación final en prueba usa todos los píxeles.
 EVAL_BG_FRACTION = 0.2
+
+# --- Algoritmo final (etapa 5b, notebooks/05b_combinacion_filtros.ipynb) ---
+# Adoptado por criterio (plan, desvío 14.5): verde a la mitad de resolución →
+# corrección del fondo (gaussiana, σ = 0,02 del diámetro) → los filtros de la
+# etapa 4, estandarizados dentro del campo detectado → regresión logística por
+# píxel → umbral. Referencia clásica: el detector de líneas solo, con la misma
+# regla de umbral. La regla (fracción o valor fijo) se cierra en la etapa 8.
+SEGMENT_FACTOR = 2
+SEGMENT_BACKGROUND_SIGMA_REL = 0.02
+SEGMENT_FEATURES = ["verde corregido", "sombrero de copa", "detector de líneas",
+                    "filtro adaptado", "Gabor", "Frangi"]
+SEGMENT_REFERENCE_FILTER = "detector de líneas"
+SEGMENT_FRACTION = 0.09        # elegida en las 5 vueltas

@@ -160,3 +160,14 @@ Resultado (`notebooks/01b_campo_de_vision.ipynb`): peor Dice 0,9993 en las 30 im
 **Motivo.** En `notebooks/05a_margen_matthews.ipynb` (desarrollo, segmentación tosca que no es candidata) el intervalo al 95 % de la diferencia de Matthews entre candidatas cercanas tiene un semiancho de 0,0002 a 0,004, pero entre métodos distintos es de 0,025 (0,033 en el análisis de la partición del 21/10). Con un margen de −0,02, un método distinto e igual de bueno nunca podría declararse no inferior, y la regla de elegir la candidata más simple entre las no inferiores no funcionaría cuando se comparan métodos distintos.
 
 **Cambio.** Para Matthews y para el Dice de línea central, el margen pasa a **−0,03**. Para el área bajo la curva sigue en −0,02 (sus intervalos son de ± 0,006 a 0,008). Afecta las elecciones en desarrollo (esquema, secciones 5.3 y 5.4); no cambia la pregunta principal en prueba (sección 10), que no usa margen.
+
+### 14.5 (31/10/2026, antes de abrir prueba) Algoritmo final adoptado por criterio: combinación de filtros
+
+**Qué pasó.** En la etapa 5 (`notebooks/05b_combinacion_filtros.ipynb`, desarrollo, validación cruzada por personas) la combinación de los filtros de la etapa 4 sobre el verde, con una regresión logística por píxel y un umbral que marca el 9 % del campo, supera al detector de líneas solo con la misma regla: Matthews +0,017 (intervalo 0,014 a 0,020), en las 30 imágenes y las 18 personas. Como la ventaja es menor que el margen de 0,03 (desvío 14.4), la regla de "la más simple entre las no inferiores" (esquema 5.3) habría elegido el detector solo.
+
+**Decisión.** Se adopta la combinación como algoritmo final, como decisión de criterio tomada después de ver los resultados. Motivos: la ventaja es firme en todas las medidas, grupos y niveles de compresión; y con el detector solo como algoritmo final, el algoritmo y la referencia de la sección 10 coincidirían y la pregunta principal no se podría responder.
+
+**Efecto sobre prueba.**
+- La pregunta principal (sección 10) queda como estaba escrita: algoritmo final (combinación) contra el método clásico de referencia (el detector de líneas sobre el verde, con la misma regla de umbral y la misma limpieza).
+- La regla de umbral (fracción fija o valor fijo sobre la probabilidad, que dieron lo mismo en desarrollo) se elige en la etapa 8 según cuál aguanta mejor las imágenes que simulan otras cámaras, y se congela antes de abrir prueba. La fracción fija supone que los vasos ocupan alrededor del 9 % del campo; ese supuesto se informa como limitación.
+- Los valores de desarrollo son optimistas, porque el mapa, la corrección del fondo, los filtros y la resolución se eligieron con las mismas imágenes; se informan como tales.
