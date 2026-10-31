@@ -130,3 +130,29 @@ def centerline_sensitivity_by_class(pred, truth, limits, region=None) -> dict[st
     lo, hi = limits
     classes = {"fino": w <= lo, "mediano": (w > lo) & (w <= hi), "grueso": w > hi}
     return {k: _ratio(np.count_nonzero(hit & c), np.count_nonzero(c)) for k, c in classes.items()}
+
+
+def auc_by_subset(score: np.ndarray, truth: np.ndarray, subsets: dict[str, np.ndarray],
+                  region: np.ndarray | None = None) -> dict[str, float]:
+    """Área bajo la curva de todos los vasos y de subconjuntos de vasos contra todo el fondo.
+
+    `subsets` son máscaras del tamaño de la imagen (por ejemplo, los vasos
+    finos). Con un solo ordenamiento: para cada píxel de vaso, la cantidad de
+    fondo con puntaje menor es su rango entre todos menos su rango entre los
+    vasos. La entrada "todos" coincide con auc().
+    """
+    from scipy.stats import rankdata
+
+    if region is None:
+        region = np.ones(truth.shape, bool)
+    s = np.asarray(score[region], dtype=np.float64)
+    t = np.asarray(truth[region], dtype=bool)
+    n_neg = int((~t).sum())
+    if t.sum() == 0 or n_neg == 0:
+        raise ValueError("La región tiene que tener vasos y fondo")
+    below = rankdata(s)[t] - rankdata(s[t])
+    out = {"todos": float(below.mean() / n_neg)}
+    for name, sub in subsets.items():
+        sel = np.asarray(sub[region], dtype=bool)[t]
+        out[name] = float(below[sel].mean() / n_neg) if sel.any() else float("nan")
+    return out

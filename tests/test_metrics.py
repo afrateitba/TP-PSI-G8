@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.metrics import (accuracy, auc, centerline_dice, centerline_precision, centerline_sensitivity,
+from src.metrics import (accuracy, auc, auc_by_subset, centerline_dice, centerline_precision, centerline_sensitivity,
                          centerline_sensitivity_by_class, confusion, dice, matthews, sensitivity,
                          specificity)
 
@@ -111,3 +111,14 @@ def test_centerline_by_class():
     assert by["fino"] < 0.05          # solo las puntas de la barra mediana miden menos de 3,47
     assert by["mediano"] == pytest.approx(1)
     assert by["grueso"] == pytest.approx(1)
+
+
+def test_auc_by_subset_matches_auc_and_subsets():
+    rng = np.random.default_rng(5)
+    truth = rng.random(2000) < 0.2
+    thin = truth & (rng.random(2000) < 0.5)
+    score = rng.normal(size=2000) + 1.5 * truth - 1.0 * thin   # los finos se separan peor
+    out = auc_by_subset(score, truth, {"finos": thin})
+    assert out["todos"] == pytest.approx(auc(score, truth))
+    assert out["finos"] == pytest.approx(auc(score[~truth | thin], thin[~truth | thin]))
+    assert out["finos"] < out["todos"]
