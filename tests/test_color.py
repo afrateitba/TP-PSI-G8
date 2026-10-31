@@ -85,3 +85,17 @@ def test_color_maps_at_scale_returns_original_size():
     # a la mitad, el verde sigue separando los vasos de 3 píxeles
     half = color_maps_at_scale(rgb, 2, names=["Verde"])["Verde"]
     assert auc(-half, vessels, region) > 0.8
+
+
+def test_nonlinear_maps_ignore_global_brightness():
+    from src.color import NONLINEAR_NAMES, nonlinear_maps
+    rgb, region, vessels = _fake_fundus()
+    a = nonlinear_maps(rgb)
+    b = nonlinear_maps((rgb * 0.5).astype(np.uint8))
+    assert list(a) == NONLINEAR_NAMES
+    for name in NONLINEAR_NAMES:
+        # en la retina (valores lejos de cero) el mapa casi no cambia al bajar la exposición
+        rel = np.abs(a[name][region] - b[name][region]) / (np.abs(a[name][region]) + 1e-6)
+        assert np.median(rel) < 0.05, name
+    # los vasos (más oscuros sobre todo en verde) bajan el cociente verde / rojo
+    assert auc(-a["Verde / rojo"], vessels, region) > 0.8
