@@ -171,3 +171,26 @@ Resultado (`notebooks/01b_campo_de_vision.ipynb`): peor Dice 0,9993 en las 30 im
 - La pregunta principal (sección 10) queda como estaba escrita: algoritmo final (combinación) contra el método clásico de referencia (el detector de líneas sobre el verde, con la misma regla de umbral y la misma limpieza).
 - La regla de umbral (fracción fija o valor fijo sobre la probabilidad, que dieron lo mismo en desarrollo) se elige en la etapa 8 según cuál aguanta mejor las imágenes que simulan otras cámaras, y se congela antes de abrir prueba. La fracción fija supone que los vasos ocupan alrededor del 9 % del campo; ese supuesto se informa como limitación.
 - Los valores de desarrollo son optimistas, porque el mapa, la corrección del fondo, los filtros y la resolución se eligieron con las mismas imágenes; se informan como tales.
+
+### 14.6 (31/10/2026, antes de abrir prueba) Ronda única de mejoras: cada filtro también en cada escala por separado
+
+**Qué pasó.** Después de adoptar la combinación (14.5) se hizo una sola ronda de mejoras (`notebooks/05e_ronda_mejoras.ipynb`, desarrollo, misma validación cruzada por personas y misma regla de fracción que `05b`). Candidatas:
+- A: la combinación de 14.5 (6 mapas);
+- B: A más el detector de líneas, el filtro adaptado, Gabor y Frangi en cada una de sus 5 escalas por separado (26);
+- C: A más contraste, homogeneidad y energía de la matriz de coocurrencia del verde corregido (9). Es la prueba 4 del esquema, sin patrones binarios locales ni energías de Laws, por tiempo;
+- D: todo (29).
+
+La regla de adopción se fijó antes de correr: una candidata reemplaza a A solo si mejora Matthews con un intervalo al 95 % que no incluye el cero y no empeora los vasos finos; si cumplen varias, gana la de menos mapas entre las no inferiores a la mejor (margen 0,03); después de la ronda el algoritmo se cierra.
+
+**Resultado.**
+- B: Matthews +0,0061 (0,0042 a 0,0080), Dice de línea central +0,022 y vasos finos +0,074 (de 26 % a 34 %), con las dos medidas de línea central mejores en las 30 imágenes.
+- C: Matthews −0,0017 (−0,0031 a −0,0003); la textura no suma.
+- D: +0,0060, sin ventaja sobre B.
+
+**Decisión.** Se adopta B por la regla fijada (`config.SEGMENT_FEATURES`, 26 mapas). La referencia clásica no cambia.
+
+**Efecto sobre prueba.**
+- El algoritmo que se congela es B. Las máscaras de desarrollo de las etapas 6 y 7 se rehicieron con B (`notebooks/05d_mascaras_desarrollo.ipynb`), cada imagen con los pesos y la fracción de la vuelta en la que quedó afuera.
+- La elección entre cuatro candidatas se hizo con las mismas 30 imágenes: el valor de desarrollo de B es algo optimista y la medida que vale es la de prueba.
+- La candidata B no estaba en el plan ni en el esquema: se agregó al armar la ronda. La textura (tema obligatorio, esquema 5.4) queda probada sobre el mapa final y se informa como resultado negativo.
+- Con las 30 imágenes, los pesos se guardan en `models/pesos_combinacion.json` y la fracción elegida sigue siendo 0,09 (`config.SEGMENT_FRACTION` no cambia). Los 26 mapas están muy correlacionados, así que los coeficientes no se interpretan uno por uno.

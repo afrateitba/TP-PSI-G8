@@ -128,7 +128,13 @@ EVAL_BG_FRACTION = 0.2
 # regla de umbral. La regla (fracción o valor fijo) se cierra en la etapa 8.
 SEGMENT_FACTOR = 2
 SEGMENT_BACKGROUND_SIGMA_REL = 0.02
-SEGMENT_FEATURES = ["verde corregido", "sombrero de copa", "detector de líneas",
-                    "filtro adaptado", "Gabor", "Frangi"]
+SEGMENT_BASE_FEATURES = ["verde corregido", "sombrero de copa", "detector de líneas",
+                         "filtro adaptado", "Gabor", "Frangi"]
+# Ronda de mejoras (etapa 5e, notebooks/05e_ronda_mejoras.ipynb; plan, desvío 14.6):
+# además de la mayor respuesta entre escalas, cada filtro orientado y Frangi en
+# cada escala de la etapa 4 por separado (26 mapas). La textura no sumó.
+SEGMENT_FEATURES = SEGMENT_BASE_FEATURES + [
+    f"{f} {w}" for w in ENHANCE_WIDTHS_PX
+    for f in ("detector de líneas", "filtro adaptado", "Gabor", "Frangi")]
 SEGMENT_REFERENCE_FILTER = "detector de líneas"
 SEGMENT_FRACTION = 0.09        # elegida en las 5 vueltas
