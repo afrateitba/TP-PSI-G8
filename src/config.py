@@ -138,3 +138,13 @@ SEGMENT_FEATURES = SEGMENT_BASE_FEATURES + [
     for f in ("detector de líneas", "filtro adaptado", "Gabor", "Frangi")]
 SEGMENT_REFERENCE_FILTER = "detector de líneas"
 SEGMENT_FRACTION = 0.09        # elegida en las 5 vueltas
+
+# --- Medidas clínicas (etapa 7, src/clinical.py) ----------------------------
+# Todos en proporción al diámetro del campo (en píxeles a resolución original:
+# el valor × 3262). La poda de ramitas y el largo mínimo de los tramos se
+# fijaron en notebooks/07a_medidas_expertos.ipynb solo con los expertos: el
+# valor más chico cuya tortuosidad por imagen casi no cambia al duplicarlo.
+CLINICAL_HOLE_REL = 40 / FOV_DIAMETER_REF        # se rellenan los agujeros de menos de este lado al cuadrado
+CLINICAL_STEP_REL = 6 / FOV_DIAMETER_REF         # un punto cada tantos píxeles para medir el largo de un tramo
+CLINICAL_SPUR_REL = 5 / FOV_DIAMETER_REF         # se podan las ramitas más cortas que esto
+CLINICAL_MIN_SEGMENT_REL = 25 / FOV_DIAMETER_REF  # los tramos más cortos no entran en la tortuosidad

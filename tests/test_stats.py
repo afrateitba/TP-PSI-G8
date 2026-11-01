@@ -71,3 +71,30 @@ def test_fit_logistic_separable_does_not_explode():
     y = np.r_[np.zeros(50, bool), np.ones(50, bool)]
     w = fit_logistic(x, y, ridge=1e-2)
     assert np.all(np.isfinite(w)) and w[1] > 0
+
+
+def test_icc_absolute_known_values():
+    from src.stats import icc_absolute
+    x = np.arange(1.0, 6.0)
+    assert icc_absolute(x, x) == pytest.approx(1.0)
+    assert icc_absolute(x, x + 1) == pytest.approx(5 / 6)       # el corrimiento fijo baja el acuerdo
+    rng = np.random.default_rng(0)
+    assert abs(icc_absolute(rng.normal(size=500), rng.normal(size=500))) < 0.1
+
+
+def test_bland_altman_bias_and_limits():
+    from src.stats import bland_altman
+    x = np.array([1.0, 2.0, 3.0, 4.0])
+    out = bland_altman(x, x + np.array([0.5, 1.5, 0.5, 1.5]))
+    assert out["sesgo"] == pytest.approx(1.0)
+    sd = np.std([0.5, 1.5, 0.5, 1.5], ddof=1)
+    assert out["límite superior"] == pytest.approx(1.0 + 1.96 * sd)
+
+
+def test_person_bootstrap_stat_matches_means():
+    from src.stats import person_bootstrap_means, person_bootstrap_stat
+    frame = pd.DataFrame({"a": [1.0, 2.0, 3.0, 5.0, 8.0]}, index=list("vwxyz"))
+    persons = pd.Series(["p", "p", "q", "r", "r"], index=frame.index)
+    by_stat = person_bootstrap_stat(frame, persons, lambda f: f["a"].mean(), reps=200)
+    by_means = person_bootstrap_means(frame["a"], persons, reps=200)[:, 0]
+    assert np.allclose(by_stat, by_means)

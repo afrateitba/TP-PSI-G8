@@ -27,6 +27,47 @@ def person_bootstrap_means(values: pd.DataFrame | pd.Series, persons: pd.Series,
     return sums[draws].sum(axis=1) / counts[draws].sum(axis=1)[:, None]
 
 
+def person_bootstrap_stat(frame: pd.DataFrame, persons: pd.Series, stat,
+                          reps: int = 2000, seed: int = SEED) -> np.ndarray:
+    """Un estadístico cualquiera de las imágenes, remuestreando personas enteras con reposición.
+
+    `stat` recibe las filas de `frame` de las personas sorteadas (una persona
+    sorteada dos veces aparece dos veces) y devuelve un número o un arreglo.
+    Los sorteos son los mismos que los de person_bootstrap_means con la misma
+    `seed`.
+    """
+    codes, uniq = pd.factorize(persons.loc[frame.index])
+    rows = [np.flatnonzero(codes == j) for j in range(len(uniq))]
+    draws = np.random.default_rng(seed).integers(0, len(uniq), size=(reps, len(uniq)))
+    return np.array([stat(frame.iloc[np.concatenate([rows[j] for j in d])]) for d in draws])
+
+
+def icc_absolute(x: np.ndarray, y: np.ndarray) -> float:
+    """Correlación intraclase de acuerdo absoluto, una medición, dos fuentes (McGraw y Wong).
+
+    Dice cuánto coinciden los valores de dos fuentes (por ejemplo, el experto y
+    el algoritmo) sobre las mismas imágenes. A diferencia de la correlación de
+    Pearson, también baja si una fuente da siempre más que la otra. 1 es
+    acuerdo perfecto; 0, ninguno.
+    """
+    data = np.c_[np.asarray(x, float), np.asarray(y, float)]
+    n, k = data.shape
+    grand = data.mean()
+    msr = k * ((data.mean(axis=1) - grand) ** 2).sum() / (n - 1)
+    msc = n * ((data.mean(axis=0) - grand) ** 2).sum() / (k - 1)
+    resid = data - data.mean(axis=1, keepdims=True) - data.mean(axis=0) + grand
+    mse = (resid ** 2).sum() / ((n - 1) * (k - 1))
+    return float((msr - mse) / (msr + (k - 1) * mse + k * (msc - mse) / n))
+
+
+def bland_altman(x: np.ndarray, y: np.ndarray) -> dict[str, float]:
+    """Sesgo (media de y − x) y límites de acuerdo (sesgo ± 1,96 desvíos) de Bland y Altman."""
+    d = np.asarray(y, float) - np.asarray(x, float)
+    bias, sd = d.mean(), d.std(ddof=1)
+    return {"sesgo": float(bias), "límite inferior": float(bias - 1.96 * sd),
+            "límite superior": float(bias + 1.96 * sd)}
+
+
 def percentile_interval(samples: np.ndarray, level: float = 0.95) -> tuple:
     """Intervalo por percentiles de los remuestreos (por columna)."""
     tail = 100 * (1 - level) / 2

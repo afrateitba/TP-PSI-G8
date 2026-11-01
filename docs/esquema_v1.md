@@ -138,6 +138,7 @@ Cada etapa termina en una **decisión sobre el algoritmo** (se adopta, se descar
 - **Validación:**
   1. Concordancia entre la medida de los expertos y la del algoritmo, con Bland–Altman y correlación intraclase.
   2. **Diferencias entre grupos:** la diferencia entre sanos y retinopatía calculada con las máscaras de los expertos se compara con la calculada con las del algoritmo. Si el algoritmo la borra o la agranda, se reporta como un sesgo suyo. Como compresión y grupo están mezclados, la comparación se repite dentro de cada nivel de compresión.
+- **Agregado el 31/10 (desvío 14.7 del plan):** con la fracción fija, la proporción de vasos del algoritmo la fija el umbral (8,9 % a 10 % en todas las imágenes). Las medidas se calculan con las dos reglas de umbral (fracción fija y valor fijo), para la combinación y para la referencia, y la concordancia clínica entra en la elección de la regla de la etapa 8.
 
 **Etapa 8 — Robustez.** Sobre las imágenes de desarrollo: compresión .jpg con calidades decrecientes, desenfoque gaussiano y ruido gaussiano en niveles crecientes. Para cada nivel, Matthews del algoritmo con y sin los pasos de restauración. Da el rango en el que el algoritmo funciona y si el Wiener y el suavizado de bloques ayudan cuando la imagen es peor.
 - **Agregado el 31/10:**
@@ -205,7 +206,7 @@ Cada etapa termina en una **decisión sobre el algoritmo** (se adopta, se descar
   3. [ ] Restauración con degradación controlada: filtro inverso, Wiener y mínimos cuadrados restringidos (etapa 8; tema obligatorio).
   4. [x] Textura sobre el verde dentro de la combinación (etapa 5; `05e_ronda_mejoras.ipynb`, 31/10): contraste, homogeneidad y energía de la matriz de coocurrencia del verde corregido bajan Matthews (−0,002, intervalo −0,003 a −0,0003): **no se adopta**. En la misma ronda, cada filtro en cada escala por separado sí mejora y se adopta (desvío 14.6). Los patrones binarios locales y las energías de Laws no se probaron, por tiempo.
   5. [ ] Interfaz gráfica (etapa 10), si sobra tiempo.
-- [ ] **7. Medidas clínicas**
+- [x] **7. Medidas clínicas** (Augusto, 31/10; `src/clinical.py`, `07a_medidas_expertos.ipynb`, `07b_medidas_algoritmo.ipynb`). Parámetros de la tortuosidad fijados solo con los expertos (poda de 5 píxeles, largo mínimo de 25). Con los expertos, la tortuosidad no separa los grupos y la mayor proporción de vasos de los sanos viene del ancho marcado (la longitud no cambia). Con las máscaras de desarrollo, la **concordancia con los expertos es baja**: correlación intraclase media 0,00 con fracción fija y 0,21 con valor fijo (+0,21, intervalo +0,08 a +0,35; **el valor fijo gana el punto 2 del desvío 14.7**). El algoritmo mide de 17 % a 22 % menos longitud por los vasos finos que pierde, y borra la diferencia de proporción entre sanos y retinopatía de los expertos (que viene de la forma de marcar). La combinación con valor fijo da Matthews 0,730 (`05d`). *Falta:* repetirlo en prueba (etapa 9).
 - [ ] **8. Robustez**
 - [ ] **9. Congelar y prueba**
 - [ ] **10. Interfaz** (opcional): cargar una foto y ver la máscara superpuesta y las medidas; es la prueba 5 de la lista de arriba.
