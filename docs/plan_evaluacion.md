@@ -194,3 +194,14 @@ La regla de adopción se fijó antes de correr: una candidata reemplaza a A solo
 - La elección entre cuatro candidatas se hizo con las mismas 30 imágenes: el valor de desarrollo de B es algo optimista y la medida que vale es la de prueba.
 - La candidata B no estaba en el plan ni en el esquema: se agregó al armar la ronda. La textura (tema obligatorio, esquema 5.4) queda probada sobre el mapa final y se informa como resultado negativo.
 - Con las 30 imágenes, los pesos se guardan en `models/pesos_combinacion.json` y la fracción elegida sigue siendo 0,09 (`config.SEGMENT_FRACTION` no cambia). Los 26 mapas están muy correlacionados, así que los coeficientes no se interpretan uno por uno.
+
+### 14.7 (31/10/2026, antes de calcular las medidas clínicas) La elección entre fracción fija y valor fijo considera también las medidas clínicas
+
+**Qué pasó.** Al preparar la etapa 7 se vio que, con la fracción fija, la proporción de vasos de las máscaras de desarrollo del algoritmo queda entre 8,9 % y 10 % en todas las imágenes, mientras que la de los expertos va de 6,7 % a 12,5 % (correlación −0,23), y la diferencia entre sanos y los otros grupos desaparece. No es un error: con esa regla la proporción la fija el umbral, no la imagen. Es lo único que se miró de las medidas clínicas del algoritmo; la longitud del esqueleto y la tortuosidad no se calcularon.
+
+**Decisión (antes de calcularlas).** La elección de la etapa 8 entre fracción fija y valor fijo sobre la probabilidad (desvío 14.5), que en desarrollo dieron lo mismo en Matthews, queda así:
+1. **Robustez**, como estaba: con las imágenes degradadas de la etapa 8, si en algún nivel de degradación una regla no resulta no inferior a la otra (el límite inferior del intervalo al 95 % de su diferencia en Matthews queda por debajo de −0,03), gana la otra. Si eso no pasa con ninguna, o pasa con las dos, se sigue al punto 2.
+2. **Concordancia clínica** (etapa 7): gana la de mayor correlación intraclase media en las tres medidas (proporción de vasos, longitud del esqueleto dividida por el diámetro y tortuosidad) entre los expertos y las máscaras de desarrollo de la combinación.
+3. Si esa media difiere en menos de 0,05, queda la fracción fija, que es la que ya se usa.
+
+Para esto, la etapa 7 calcula las medidas con las dos reglas, para la combinación y para la referencia; las máscaras con valor fijo se generan en `05d` con el valor elegido en entrenamiento en cada vuelta, como en `05b`.

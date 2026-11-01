@@ -72,12 +72,33 @@ def test_feature_bank_contains_base_maps_and_scales():
     assert np.isfinite(bank).all()
 
 
-def test_choose_fraction_finds_the_weighted_vessel_share():
-    from src.pipeline import choose_fraction
+def _threshold_samples(share, bg_weight):
+    """Muestras para el umbral donde solo el detector separa los vasos (una `share` de la muestra)."""
     rng = np.random.default_rng(1)
+    ref = SEGMENT_FEATURES.index("detector de líneas")
     samples = {}
     for i in ("a", "b"):
-        y = rng.random(4000) < 0.6 / 1.48              # con el fondo pesando 5, los vasos son el 12 %
-        x = np.where(y, 3.0, -3.0) + rng.normal(0, 0.3, y.size)
-        samples[i] = {"x_thr": x[:, None], "y_thr": y, "w_thr": np.where(y, 1.0, 5.0)}
-    assert choose_fraction(samples, np.array([0.0, 1.0]), ["a", "b"]) == pytest.approx(0.12)
+        y = rng.random(4000) < share
+        x = rng.normal(0, 1, (y.size, len(SEGMENT_FEATURES)))
+        x[:, ref] = np.where(y, 3.0, -3.0) + rng.normal(0, 0.3, y.size)
+        samples[i] = {"x_thr": x, "y_thr": y, "w_thr": np.where(y, 1.0, bg_weight)}
+    return samples, ref
+
+
+def test_choose_fraction_finds_the_weighted_vessel_share():
+    from src.pipeline import choose_fraction
+    samples, ref = _threshold_samples(0.6 / 1.48, 5.0)     # con el fondo pesando 5, los vasos son el 12 %
+    w = np.zeros(len(SEGMENT_FEATURES) + 1)
+    w[1 + ref] = 1.0
+    assert choose_fraction(samples, w, ["a", "b"]) == pytest.approx(0.12)
+    assert choose_fraction(samples, None, ["a", "b"]) == pytest.approx(0.12)   # la referencia
+
+
+def test_choose_value_separates_the_vessels():
+    from src.pipeline import choose_value
+    samples, ref = _threshold_samples(0.12, 1.0)
+    for weights in (None, np.r_[0.0, np.eye(len(SEGMENT_FEATURES))[ref]]):
+        t = choose_value(samples, weights, ["a", "b"])
+        x = samples["a"]["x_thr"][:, ref]
+        score = x if weights is None else 1 / (1 + np.exp(-x))
+        assert (score > t).mean() == pytest.approx(samples["a"]["y_thr"].mean(), abs=0.01)

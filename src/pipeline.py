@@ -177,18 +177,28 @@ def _weighted_quantile(v: np.ndarray, w: np.ndarray, q: float) -> float:
     return v[o][np.searchsorted(np.cumsum(w[o]) / w.sum(), q)]
 
 
-def choose_fraction(samples: dict[str, dict], weights: np.ndarray, image_ids,
+def _threshold_scores(samples: dict[str, dict], weights: np.ndarray | None, image_ids) -> dict:
+    """Puntaje de la muestra para el umbral: la probabilidad con `weights`, o el
+    detector de líneas solo (la referencia) si `weights` es None."""
+    from .stats import predict_logistic
+
+    ref = SEGMENT_FEATURES.index(SEGMENT_REFERENCE_FILTER)
+    return {i: predict_logistic(samples[i]["x_thr"], weights) if weights is not None
+            else samples[i]["x_thr"][:, ref].astype(np.float64) for i in image_ids}
+
+
+def choose_fraction(samples: dict[str, dict], weights: np.ndarray | None, image_ids,
                     fractions=FRACTIONS) -> float:
     """La fracción de `fractions` con el mejor Matthews medio en `image_ids`.
 
-    En cada imagen se marca la fracción más alta de la probabilidad (cuantil con
-    los pesos de la muestra) y Matthews se estima con weighted_matthews.
+    En cada imagen se marca la fracción más alta del puntaje (cuantil con los
+    pesos de la muestra) y Matthews se estima con weighted_matthews. Con
+    `weights` None el puntaje es el de la referencia.
     """
     from .evaluation import weighted_matthews
-    from .stats import predict_logistic
 
     image_ids = list(image_ids)
-    scores = {i: predict_logistic(samples[i]["x_thr"], weights) for i in image_ids}
+    scores = _threshold_scores(samples, weights, image_ids)
 
     def mean_matthews(f):
         return np.mean([weighted_matthews(scores[i] > _weighted_quantile(scores[i], samples[i]["w_thr"], 1 - f),
@@ -196,12 +206,36 @@ def choose_fraction(samples: dict[str, dict], weights: np.ndarray, image_ids,
     return float(max(fractions, key=mean_matthews))
 
 
+def choose_value(samples: dict[str, dict], weights: np.ndarray | None, image_ids) -> float:
+    """El valor fijo del puntaje con el mejor Matthews medio en `image_ids` (como en 05b).
+
+    Las candidatas son 60 cuantiles, de 0,70 a 0,995, de los puntajes de todas
+    las imágenes de `image_ids` juntas. Con `weights` None el puntaje es el de
+    la referencia.
+    """
+    from .evaluation import weighted_matthews
+
+    image_ids = list(image_ids)
+    scores = _threshold_scores(samples, weights, image_ids)
+    grid = np.quantile(np.concatenate([scores[i] for i in image_ids]), np.linspace(0.70, 0.995, 60))
+
+    def mean_matthews(t):
+        return np.mean([weighted_matthews(scores[i] > t, samples[i]["y_thr"], samples[i]["w_thr"])
+                        for i in image_ids])
+    return float(max(grid, key=mean_matthews))
+
+
 def save_weights(weights: np.ndarray, path: Path = WEIGHTS_PATH, note: str = "",
-                 fraction: float = SEGMENT_FRACTION) -> None:
-    """Guarda los pesos con los nombres de los mapas, para que el script los pueda usar."""
+                 fraction: float = SEGMENT_FRACTION, value: float | None = None) -> None:
+    """Guarda los pesos con los nombres de los mapas, para que el script los pueda usar.
+
+    También guarda la fracción y el valor fijo elegidos con las mismas imágenes
+    (la regla se cierra en la etapa 8; plan, desvíos 14.5 y 14.7).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     data = {"features": SEGMENT_FEATURES, "intercept": float(weights[0]),
-            "coefficients": [float(w) for w in weights[1:]], "fraction": fraction, "note": note}
+            "coefficients": [float(w) for w in weights[1:]], "fraction": fraction, "value": value,
+            "note": note}
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
@@ -228,8 +262,10 @@ def load_dev_mask(image_id: str, kind: str = "combinación", cache: Path = MASK_
     """Máscara de desarrollo guardada por save_dev_masks.
 
     `kind` es "combinación" (algoritmo final) o "referencia" (detector de
-    líneas solo). Cada imagen se segmentó con los pesos y la fracción de la
-    vuelta de validación cruzada en la que quedó afuera (notebooks/05d).
+    líneas solo), con la fracción fija; con " valor fijo" al final ("combinación
+    valor fijo", "referencia valor fijo"), con el valor fijo. Cada imagen se
+    segmentó con los pesos y el umbral de la vuelta de validación cruzada en la
+    que quedó afuera (notebooks/05d).
     """
     z = np.load(cache / f"{image_id}.npz")
     shape = tuple(z["shape"])
