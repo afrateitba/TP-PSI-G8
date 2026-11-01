@@ -21,9 +21,9 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import (EVAL_BG_FRACTION, ROOT, SEGMENT_BACKGROUND_SIGMA_REL, SEGMENT_BASE_FEATURES,
-                     SEGMENT_FACTOR, SEGMENT_FEATURES, SEGMENT_FRACTION, SEGMENT_REFERENCE_FILTER,
-                     SEED)
+from .config import (EVAL_BG_FRACTION, ROOT, SEGMENT_BACKGROUND_SIGMA_REL, SEGMENT_BALANCED_TRAINING,
+                     SEGMENT_BASE_FEATURES, SEGMENT_FACTOR, SEGMENT_FEATURES, SEGMENT_FRACTION,
+                     SEGMENT_REFERENCE_FILTER, SEED)
 
 WEIGHTS_PATH = ROOT / "models" / "pesos_combinacion.json"
 N_TRAIN = 20_000    # píxeles de vaso y de fondo por imagen para ajustar los pesos
@@ -31,13 +31,15 @@ N_THR = 30_000      # píxeles de la muestra fija por imagen para elegir la frac
 FRACTIONS = np.round(np.arange(0.05, 0.20, 0.01), 2)   # fracciones candidatas
 
 
-def _maps(rgb: np.ndarray, factor: int, texture: bool) -> tuple[dict[str, np.ndarray], np.ndarray]:
-    """Todos los mapas sin estandarizar, a 1/`factor`: (nombre → mapa, campo detectado).
+def _feature_stream(rgb: np.ndarray, factor: int, texture: bool = False):
+    """Mapas sin estandarizar, de a uno, a 1/`factor`: (campo detectado, generador de (nombre, mapa)).
 
-    Los de SEGMENT_BASE_FEATURES (los orientados como la mayor respuesta entre
-    escalas, igual que apply_filter, sin volver a calcularlos); cada filtro
-    orientado y Frangi en cada escala de la etapa 4 por separado; y, si
-    `texture`, la textura de la matriz de coocurrencia del verde corregido.
+    Genera los de SEGMENT_BASE_FEATURES (los orientados como la mayor respuesta
+    entre escalas, igual que apply_filter), cada filtro orientado y Frangi en
+    cada escala de la etapa 4 por separado y, si `texture`, la textura de la
+    matriz de coocurrencia del verde corregido. Calcula un mapa por vez y solo
+    guarda el verde y las mayores respuestas, así que entra en memoria también
+    a resolución completa.
     """
     from . import config as c
     from .enhance import (apply_filter, frangi_filter, gabor_filter, glcm_texture, line_detector,
@@ -46,54 +48,108 @@ def _maps(rgb: np.ndarray, factor: int, texture: bool) -> tuple[dict[str, np.nda
 
     maps, region, d = prepare_maps(rgb, ["Verde"], factor)
     green = corregir_fondo(maps["Verde"], region, SEGMENT_BACKGROUND_SIGMA_REL * d)
-    widths = [scale_px(r, d) for r in c.ENHANCE_WIDTHS_REL]
-    scales = {}
-    for w, px in zip(c.ENHANCE_WIDTHS_PX, widths):
-        s = max(sigma_for_width(px), c.ENHANCE_SIGMA_MIN_PX)
-        scales[f"detector de líneas {w}"] = line_detector(green, max(c.ENHANCE_LINE_LENGTH * px, 3))
-        scales[f"filtro adaptado {w}"] = matched_filter(green, s, c.ENHANCE_MATCHED_LENGTH * s)
-        scales[f"Gabor {w}"] = gabor_filter(green, s, c.ENHANCE_GABOR_ELONGATION)
-        scales[f"Frangi {w}"] = frangi_filter(green, [s])
-    out = {}
-    for name in SEGMENT_BASE_FEATURES:
-        if name == "verde corregido":
-            out[name] = green
-        elif name in ("detector de líneas", "filtro adaptado", "Gabor"):
-            out[name] = np.max([scales[f"{name} {w}"] for w in c.ENHANCE_WIDTHS_PX], axis=0)
-        else:
-            out[name] = apply_filter(name, green, d)
-    out.update(scales)
-    if texture:
-        window = max(3, int(round(scale_px(c.GLCM_WINDOW_REL, d))) | 1)
-        for name, m in glcm_texture(quantize(green, c.GLCM_LEVELS, region), c.GLCM_LEVELS, window).items():
-            out[f"textura {name}"] = m
-    return out, region
+    del maps
+
+    def generate():
+        yield "verde corregido", green
+        yield "sombrero de copa", apply_filter("sombrero de copa", green, d)
+        yield "Frangi", apply_filter("Frangi", green, d)
+        best = {}
+        for w, rel in zip(c.ENHANCE_WIDTHS_PX, c.ENHANCE_WIDTHS_REL):
+            px = scale_px(rel, d)
+            s = max(sigma_for_width(px), c.ENHANCE_SIGMA_MIN_PX)
+            makers = {"detector de líneas": lambda: line_detector(green, max(c.ENHANCE_LINE_LENGTH * px, 3)),
+                      "filtro adaptado": lambda: matched_filter(green, s, c.ENHANCE_MATCHED_LENGTH * s),
+                      "Gabor": lambda: gabor_filter(green, s, c.ENHANCE_GABOR_ELONGATION),
+                      "Frangi": lambda: frangi_filter(green, [s])}
+            for name, make in makers.items():
+                m = make()
+                yield f"{name} {w}", m
+                if name != "Frangi":
+                    best[name] = m if name not in best else np.maximum(best[name], m)
+        yield from best.items()
+        if texture:
+            window = max(3, int(round(scale_px(c.GLCM_WINDOW_REL, d))) | 1)
+            for name, m in glcm_texture(quantize(green, c.GLCM_LEVELS, region), c.GLCM_LEVELS, window).items():
+                yield f"textura {name}", m
+
+    return region, generate()
 
 
-def _stack(maps: dict[str, np.ndarray], names: list[str], region: np.ndarray) -> np.ndarray:
+def _standardized(m: np.ndarray, region: np.ndarray) -> np.ndarray:
     from .color import standardize
 
-    return np.stack([standardize(np.asarray(maps[n], dtype=np.float32), region) for n in names])
+    return standardize(np.asarray(m, dtype=np.float32), region)
 
 
 def compute_features(rgb: np.ndarray, factor: int = SEGMENT_FACTOR) -> tuple[np.ndarray, np.ndarray]:
     """Los mapas de SEGMENT_FEATURES estandarizados, a 1/`factor` de la resolución.
 
     Devuelve (mapas con forma (n_mapas, alto, ancho), campo detectado a esa
-    resolución). Usa solo la foto.
+    resolución). Usa solo la foto. Tiene todos los mapas en memoria: a
+    resolución completa conviene feature_scores.
     """
-    maps, region = _maps(rgb, factor, texture=any(n.startswith("textura") for n in SEGMENT_FEATURES))
-    return _stack(maps, SEGMENT_FEATURES, region), region
+    region, stream = _feature_stream(rgb, factor, any(n.startswith("textura") for n in SEGMENT_FEATURES))
+    maps = {n: _standardized(m, region) for n, m in stream if n in SEGMENT_FEATURES}
+    return np.stack([maps[n] for n in SEGMENT_FEATURES]), region
 
 
 def compute_feature_bank(rgb: np.ndarray, factor: int = SEGMENT_FACTOR) -> tuple[np.ndarray, list[str]]:
-    """Banco completo de mapas de la ronda de mejoras (etapa 5e): todos los de _maps, con textura.
+    """Banco completo de mapas de la ronda de mejoras (etapa 5e), con textura.
 
-    Devuelve (mapas estandarizados, nombres).
+    Devuelve (mapas estandarizados, nombres): primero SEGMENT_BASE_FEATURES,
+    después las escalas por separado y la textura.
     """
-    maps, region = _maps(rgb, factor, texture=True)
-    names = list(maps)
-    return _stack(maps, names, region), names
+    region, stream = _feature_stream(rgb, factor, texture=True)
+    maps = {n: _standardized(m, region) for n, m in stream}
+    names = SEGMENT_BASE_FEATURES + [n for n in maps if n not in SEGMENT_BASE_FEATURES]
+    return np.stack([maps[n] for n in names]), names
+
+
+def feature_scores(rgb: np.ndarray, weight_sets: list[np.ndarray], factor: int = SEGMENT_FACTOR,
+                   keep: tuple[str, ...] = ()) -> tuple[list[np.ndarray], dict[str, np.ndarray], np.ndarray]:
+    """Probabilidad de vaso para uno o varios juegos de pesos, calculando los mapas de a uno.
+
+    Devuelve (una probabilidad por juego de pesos, a 1/`factor` y en float32;
+    los mapas de `keep`, estandarizados; campo detectado). Da lo mismo que
+    compute_features + predict_logistic sin tener los 26 mapas en memoria.
+    """
+    region, stream = _feature_stream(rgb, factor)
+    index = {n: j for j, n in enumerate(SEGMENT_FEATURES)}
+    lins = [np.full(region.shape, w[0], dtype=np.float64) for w in weight_sets]
+    kept = {}
+    for name, m in stream:
+        if name not in index:
+            continue
+        z = _standardized(m, region)
+        for lin, w in zip(lins, weight_sets):
+            lin += w[1 + index[name]] * z
+        if name in keep:
+            kept[name] = z
+    probs = [(1.0 / (1.0 + np.exp(-np.clip(lin, -35, 35)))).astype(np.float32) for lin in lins]
+    return probs, kept, region
+
+
+def sample_features(image_id: str, factor: int = SEGMENT_FACTOR) -> np.ndarray:
+    """Valores de los mapas de SEGMENT_FEATURES en los píxeles de la muestra fija de una imagen de desarrollo.
+
+    Filas: píxeles de la muestra (src/evaluation.py); columnas: mapas. Calcula
+    los mapas de a uno.
+    """
+    from .data import load_image
+    from .evaluation import load_sample, sample_values
+
+    s = load_sample(image_id)
+    region, stream = _feature_stream(load_image(image_id), factor)
+    cols = {n: sample_values(_standardized(m, region), s).astype(np.float32)
+            for n, m in stream if n in SEGMENT_FEATURES}
+    return np.stack([cols[n] for n in SEGMENT_FEATURES], axis=1)
+
+
+def _full_size(score: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
+    from .enhance import upscale
+
+    return score if score.shape == tuple(shape) else upscale(score, shape)
 
 
 def _threshold(score_full: np.ndarray, fov_full: np.ndarray, fraction: float | None,
@@ -107,7 +163,7 @@ def _threshold(score_full: np.ndarray, fov_full: np.ndarray, fraction: float | N
 
 def segment_image(rgb: np.ndarray, weights: np.ndarray, fraction: float | None = SEGMENT_FRACTION,
                   value: float | None = None, features: np.ndarray | None = None,
-                  return_score: bool = False):
+                  return_score: bool = False, factor: int = SEGMENT_FACTOR):
     """Máscara de vasos (booleana, del tamaño de la foto) con la combinación de filtros.
 
     `weights` son los de fit_weights / load_weights (ordenada al origen primero).
@@ -115,50 +171,65 @@ def segment_image(rgb: np.ndarray, weights: np.ndarray, fraction: float | None =
     `value`, en cambio, marca la probabilidad mayor que `value`. `features`
     permite pasar los mapas ya calculados (compute_features) para no repetirlos.
     """
-    from .enhance import upscale
     from .fov import detect_fov_robust
     from .stats import predict_logistic
 
-    if features is None:
-        features, _ = compute_features(rgb)
-    prob = predict_logistic(features.reshape(len(features), -1).T, weights)
-    prob = upscale(prob.reshape(features.shape[1:]).astype(np.float32), rgb.shape[:2])
+    if features is not None:
+        prob = predict_logistic(features.reshape(len(features), -1).T, weights)
+        prob = prob.reshape(features.shape[1:]).astype(np.float32)
+    else:
+        (prob,), _, _ = feature_scores(rgb, [weights], factor)
+    prob = _full_size(prob, rgb.shape[:2])
     mask = _threshold(prob, detect_fov_robust(rgb), fraction, value)
     return (mask, prob) if return_score else mask
 
 
 def segment_reference(rgb: np.ndarray, fraction: float | None = SEGMENT_FRACTION,
-                      value: float | None = None, features: np.ndarray | None = None) -> np.ndarray:
+                      value: float | None = None, features: np.ndarray | None = None,
+                      factor: int = SEGMENT_FACTOR) -> np.ndarray:
     """Referencia clásica: solo el detector de líneas sobre el verde, con la misma regla de umbral."""
-    from .enhance import upscale
     from .fov import detect_fov_robust
 
-    if features is None:
-        features, _ = compute_features(rgb)
-    score = upscale(features[SEGMENT_FEATURES.index(SEGMENT_REFERENCE_FILTER)], rgb.shape[:2])
-    return _threshold(score, detect_fov_robust(rgb), fraction, value)
+    if features is not None:
+        score = features[SEGMENT_FEATURES.index(SEGMENT_REFERENCE_FILTER)]
+    else:
+        _, kept, _ = feature_scores(rgb, [], factor, keep=(SEGMENT_REFERENCE_FILTER,))
+        score = kept[SEGMENT_REFERENCE_FILTER]
+    return _threshold(_full_size(score, rgb.shape[:2]), detect_fov_robust(rgb), fraction, value)
 
 
-def training_pixels(image_id: str, features: np.ndarray | None = None) -> dict[str, np.ndarray]:
+def _choose(rng: np.random.Generator, idx: np.ndarray, n: int) -> np.ndarray:
+    return rng.choice(idx, n, replace=len(idx) < n)
+
+
+def training_pixels(image_id: str, values: np.ndarray | None = None,
+                    balanced: bool = SEGMENT_BALANCED_TRAINING,
+                    factor: int = SEGMENT_FACTOR) -> dict[str, np.ndarray]:
     """Píxeles de una imagen de desarrollo para ajustar los pesos y elegir la fracción.
 
     Salen de la muestra fija de evaluación (src/evaluation.py), con la semilla
     que depende de la imagen, como en notebooks/05b y 05e: "x" e "y" son
     N_TRAIN píxeles de vaso y N_TRAIN de fondo (para los pesos); "x_thr",
     "y_thr" y "w_thr" son N_THR píxeles de la muestra con su peso (el fondo
-    pesa 1 / EVAL_BG_FRACTION), para elegir la fracción.
+    pesa 1 / EVAL_BG_FRACTION), para elegir la fracción. Con `balanced`, los
+    píxeles de vaso son un tercio de cada clase de grosor (finos, medianos y
+    gruesos; etapa 5f) en lugar de sorteados al azar; el fondo y la muestra
+    para el umbral son los mismos. `values` son los de sample_features, si ya
+    se calcularon.
     """
-    from .data import load_image
-    from .evaluation import load_sample, sample_values
+    from .evaluation import load_sample
+    from .vessels import MEDIUM, THICK, THIN
 
     s = load_sample(image_id)
-    if features is None:
-        features, _ = compute_features(load_image(image_id))
-    v = np.stack([sample_values(f, s) for f in features], axis=1).astype(np.float32)
+    v = sample_features(image_id, factor) if values is None else values
     rng = np.random.default_rng(SEED + sum(map(ord, image_id)))
     pos, neg = np.flatnonzero(s.truth), np.flatnonzero(~s.truth)
-    pick = np.r_[rng.choice(pos, N_TRAIN, replace=False), rng.choice(neg, N_TRAIN, replace=False)]
+    pick_pos, pick_neg = rng.choice(pos, N_TRAIN, replace=False), rng.choice(neg, N_TRAIN, replace=False)
     thr = rng.choice(len(s.truth), N_THR, replace=False)
+    if balanced:
+        pick_pos = np.concatenate([_choose(rng, np.flatnonzero(s.cls == c), N_TRAIN // 3)
+                                   for c in (THIN, MEDIUM, THICK)])
+    pick = np.r_[pick_pos, pick_neg]
     return {"x": v[pick], "y": s.truth[pick], "x_thr": v[thr], "y_thr": s.truth[thr],
             "w_thr": np.where(s.truth[thr], 1.0, 1 / EVAL_BG_FRACTION)}
 

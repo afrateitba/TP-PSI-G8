@@ -205,3 +205,19 @@ La regla de adopción se fijó antes de correr: una candidata reemplaza a A solo
 3. Si esa media difiere en menos de 0,05, queda la fracción fija, que es la que ya se usa.
 
 Para esto, la etapa 7 calcula las medidas con las dos reglas, para la combinación y para la referencia; las máscaras con valor fijo se generan en `05d` con el valor elegido en entrenamiento en cada vuelta, como en `05b`.
+
+### 14.8 (31/10/2026, antes de correr) Ronda para los vasos finos: resolución completa y entrenamiento equilibrado por grosor
+
+**Qué pasó.** Después de cerrar el algoritmo (14.6) se decidió hacer una última ronda dirigida a su limitación principal: detecta un tercio de los vasos finos (34 %), y eso es lo que más baja la concordancia de las medidas clínicas (etapa 7). Esta ronda reabre el cierre de 14.6 y se declara acá.
+
+**Candidatas** (los mismos 26 mapas, la misma validación cruzada por personas y la misma elección de la fracción que `05e`; cuaderno `05f_vasos_finos.ipynb`):
+- A: el algoritmo actual (mitad de resolución; los píxeles de vaso para entrenar se sortean al azar, así que la mayoría son de vasos gruesos);
+- B: A con entrenamiento equilibrado por grosor: un tercio de los píxeles de vaso de entrenamiento de cada clase (finos, medianos y gruesos);
+- C: A a resolución completa;
+- D: B a resolución completa.
+
+**Regla de adopción (fijada antes de correr).** Una candidata reemplaza a A si mejora la sensibilidad de línea central en vasos finos con un intervalo al 95 % que no incluye el cero, y si Matthews y el Dice de línea central no son inferiores a los de A (límite inferior del intervalo de la diferencia por encima de −0,03, desvío 14.4). Si cumplen varias, gana la más barata (en este orden: B, C, D) entre las que no son inferiores a la mejor en vasos finos (mismo margen). Si ninguna cumple, queda A. La decisión se toma con la fracción fija; el valor fijo se informa. Después de esta ronda el algoritmo se cierra sin excepciones.
+
+**Efecto.** Si cambia el algoritmo, se rehacen las máscaras de desarrollo (`05d`) y la etapa 7 (`07b`, con los parámetros ya fijados en `07a`), y las etapas 6 y 8 usan la versión nueva.
+
+**Resultado (escrito después de correr, `05f`).** A se reproduce exacto (0,7255). B: vasos finos +0,067 (de 34 % a 40 %, intervalo +0,060 a +0,075), Matthews igual y Dice de línea central +0,004: cumple. C (resolución completa): los vasos finos bajan (−0,051): no cumple. D: finos +0,054, cumple, pero no supera a B. **Se adopta B** (`config.SEGMENT_BALANCED_TRAINING = True`); la resolución queda en la mitad y el algoritmo se cierra.

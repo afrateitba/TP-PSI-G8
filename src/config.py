@@ -138,6 +138,10 @@ SEGMENT_FEATURES = SEGMENT_BASE_FEATURES + [
     for f in ("detector de líneas", "filtro adaptado", "Gabor", "Frangi")]
 SEGMENT_REFERENCE_FILTER = "detector de líneas"
 SEGMENT_FRACTION = 0.09        # elegida en las 5 vueltas
+# Ronda para los vasos finos (etapa 5f; plan, desvío 14.8): entrenar con un tercio de
+# los píxeles de vaso de cada clase de grosor en lugar de sorteados al azar. Adoptado:
+# los vasos finos suben de 34 % a 40 % con Matthews igual. La resolución completa no ayudó.
+SEGMENT_BALANCED_TRAINING = True
 
 # --- Medidas clínicas (etapa 7, src/clinical.py) ----------------------------
 # Todos en proporción al diámetro del campo (en píxeles a resolución original:

@@ -102,3 +102,25 @@ def test_choose_value_separates_the_vessels():
         x = samples["a"]["x_thr"][:, ref]
         score = x if weights is None else 1 / (1 + np.exp(-x))
         assert (score > t).mean() == pytest.approx(samples["a"]["y_thr"].mean(), abs=0.01)
+
+
+def test_feature_scores_match_the_stacked_maps():
+    from src.pipeline import feature_scores
+    from src.stats import predict_logistic
+    rgb, _, _ = _fake_fundus()
+    f, region = compute_features(rgb, factor=2)
+    w = np.random.default_rng(4).normal(0, 0.5, len(SEGMENT_FEATURES) + 1)
+    (prob,), kept, region2 = feature_scores(rgb, [w], factor=2, keep=("detector de líneas",))
+    expected = predict_logistic(f.reshape(len(f), -1).T, w).reshape(f.shape[1:])
+    assert (region == region2).all()
+    assert np.allclose(prob, expected, atol=1e-6)
+    assert np.allclose(kept["detector de líneas"], f[SEGMENT_FEATURES.index("detector de líneas")])
+
+
+def test_segment_image_at_full_resolution():
+    rgb, vessels, inside = _fake_fundus()
+    w = np.zeros(len(SEGMENT_FEATURES) + 1)
+    w[1 + SEGMENT_FEATURES.index("detector de líneas")] = 1.0
+    mask = segment_image(rgb, w, fraction=0.05, factor=1)
+    assert mask.shape == rgb.shape[:2]
+    assert mask[vessels].mean() > 0.5
