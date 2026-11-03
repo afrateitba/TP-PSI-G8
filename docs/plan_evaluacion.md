@@ -77,13 +77,13 @@ Se completa al cerrar la etapa 8. El valor definitivo es el del commit `congelad
 
 | Componente | Valor |
 |---|---|
-| Campo de visión | automático o el de la base (etapa 1) |
-| Resolución de trabajo | (etapas 2 a 4) |
-| Mapas de color | (etapa 2) |
-| Mejoramiento y restauración | (etapa 3) |
-| Realce y textura | (etapa 4) |
-| Combinación, umbral y limpieza | (etapa 5) |
-| Corrección de la etapa 6, si la hubo | (etapa 6) |
+| Campo de visión | automático: `detect_fov_robust` (etapa 1, desvío 14.2) |
+| Resolución de trabajo | mitad (`SEGMENT_FACTOR = 2`; etapa 5) |
+| Mapas de color | verde (etapa 2d) |
+| Mejoramiento y restauración | corrección del fondo con una gaussiana de σ = 0,02 del diámetro; sin restauración (etapas 3 y 8, desvío 14.9) |
+| Realce y textura | 26 mapas: verde corregido, sombrero de copa, y detector de líneas, filtro adaptado, Gabor y Frangi con la mayor respuesta entre escalas y en cada una de las 5 escalas; sin textura (etapas 4 y 5, desvío 14.6) |
+| Combinación, umbral y limpieza | regresión logística con entrenamiento equilibrado por grosor (desvío 14.8); umbral de valor fijo sobre la probabilidad, 0,857 (referencia: 0,945), elegido con todo desarrollo (desvío 14.7, etapa 8); sin limpieza. Pesos y umbrales en `models/pesos_combinacion.json`; se aplica con `src/pipeline.segment_final` |
+| Corrección de la etapa 6, si la hubo | ninguna (desvío 14.3: la diferencia de la retinopatía no aparece en el Dice de línea central) |
 
 ## 10. Pregunta principal en prueba
 
@@ -221,3 +221,15 @@ Para esto, la etapa 7 calcula las medidas con las dos reglas, para la combinaci�
 **Efecto.** Si cambia el algoritmo, se rehacen las máscaras de desarrollo (`05d`) y la etapa 7 (`07b`, con los parámetros ya fijados en `07a`), y las etapas 6 y 8 usan la versión nueva.
 
 **Resultado (escrito después de correr, `05f`).** A se reproduce exacto (0,7255). B: vasos finos +0,067 (de 34 % a 40 %, intervalo +0,060 a +0,075), Matthews igual y Dice de línea central +0,004: cumple. C (resolución completa): los vasos finos bajan (−0,051): no cumple. D: finos +0,054, cumple, pero no supera a B. **Se adopta B** (`config.SEGMENT_BALANCED_TRAINING = True`); la resolución queda en la mitad y el algoritmo se cierra.
+
+### 14.9 (3/11/2026, antes de abrir prueba) Cierre de la etapa 8: regla del umbral y restauración
+
+**Regla del umbral.** Con el desvío 14.7 (`notebooks/08_robustez.ipynb`): en robustez ninguna regla deja de ser no inferior a la otra en ningún nivel (el peor caso, ruido σ = 20, da valor fijo − fracción fija = −0,0175, intervalo −0,024 a −0,011); por concordancia clínica gana el valor fijo (correlación intraclase media 0,21 contra −0,02). Se congela el **valor fijo**, elegido con todo desarrollo: 0,857 para la combinación y 0,945 para la referencia clásica, que usa la misma regla (sección 10).
+
+**Restauración (desvío de la regla del esquema 5.4).** Aplicado a la foto antes del algoritmo, el suavizado de bloques es no inferior y mejora la base en +0,0001 (intervalo 0,0000 a 0,0003): por la regla debía adoptarse. **No se adopta**, por criterio: el efecto es despreciable y adoptarlo cambiaría el algoritmo usado en las etapas 5 a 7 antes de congelar. El Wiener contra el ruido no se midió en la base y no cambia nada con ruido leve: tampoco se adopta; se recomienda para fotos con ruido marcado (σ ≥ 10 niveles).
+
+**Efecto sobre prueba.**
+- El algoritmo que se congela no incluye restauración y **segmenta con el valor fijo** (antes, `segment_image` usaba la fracción fija por defecto).
+- La referencia clásica usa la misma regla con **su propio valor fijo (0,945)**, elegido el 3/11 con todo desarrollo como el de la combinación (`choose_value` con el puntaje del detector de líneas); antes no estaba guardado.
+- `notebooks/99_prueba.ipynb` y `scripts/segmentar.py` usan `src/pipeline.segment_final(rgb)` para el algoritmo y `segment_final(rgb, reference=True)` para la referencia, que leen la regla de `config.SEGMENT_THRESHOLD_RULE` y los valores de `models/pesos_combinacion.json`. `segment_image` y `segment_reference` no cambian y siguen sirviendo con umbrales explícitos.
+- Las curvas de robustez de la sección 11, punto 5, se repiten sobre prueba con los mismos niveles (`config.ROBUST_*`, `IMAGE_JPEG_QUALITIES` y `RESTORE_*`).
