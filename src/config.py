@@ -152,3 +152,19 @@ CLINICAL_HOLE_REL = 40 / FOV_DIAMETER_REF        # se rellenan los agujeros de m
 CLINICAL_STEP_REL = 6 / FOV_DIAMETER_REF         # un punto cada tantos píxeles para medir el largo de un tramo
 CLINICAL_SPUR_REL = 5 / FOV_DIAMETER_REF         # se podan las ramitas más cortas que esto
 CLINICAL_MIN_SEGMENT_REL = 25 / FOV_DIAMETER_REF  # los tramos más cortos no entran en la tortuosidad
+
+# --- Robustez (etapa 8, notebooks/08_robustez.ipynb) ------------------------
+# Degradaciones agregadas a la foto de desarrollo, en niveles crecientes
+# (decisión de criterio, fijada antes de correr el desenfoque y el ruido).
+ROBUST_JPEG_QUALITIES = (90, 70, 50, 30)
+# Desenfoque gaussiano: σ de 1, 2 y 4 píxeles a resolución original (el límite
+# de los vasos finos es 3,47 píxeles), en proporción al diámetro.
+ROBUST_BLUR_SIGMA_REL = tuple(s / FOV_DIAMETER_REF for s in (1, 2, 4))
+# Ruido gaussiano: desvío de 5, 10 y 20 niveles de gris (de 255), en cada canal.
+ROBUST_NOISE_SIGMAS = (5, 10, 20)
+# Restauración de la foto (src/degrade.restore_photo), una por degradación:
+# JPEG → suavizado de bloques; ruido → Wiener local; desenfoque → deconvolución
+# de Wiener con el desenfoque conocido. La ventana del Wiener local cubre la
+# misma porción de retina que en la etapa 3b (5 píxeles a 1/2 de resolución).
+ROBUST_WIENER_SIZE = WIENER_SIZE * STAGE3_FACTOR + 1
+ROBUST_DEBLUR_BALANCE = 0.1
