@@ -137,7 +137,12 @@ SEGMENT_FEATURES = SEGMENT_BASE_FEATURES + [
     f"{f} {w}" for w in ENHANCE_WIDTHS_PX
     for f in ("detector de líneas", "filtro adaptado", "Gabor", "Frangi")]
 SEGMENT_REFERENCE_FILTER = "detector de líneas"
-SEGMENT_FRACTION = 0.09        # elegida en las 5 vueltas; regla cerrada en la etapa 8 (fracción fija)
+SEGMENT_FRACTION = 0.09        # elegida en las 5 vueltas
+# Regla del umbral, cerrada en la etapa 8 (notebooks/08_robustez.ipynb) con el
+# desvío 14.7: en robustez ninguna pierde; por concordancia clínica (etapa 7)
+# gana el valor fijo (correlación intraclase 0,21 contra −0,02). El valor es el
+# elegido con todo desarrollo y guardado con save_weights (models/pesos_combinacion.json).
+SEGMENT_THRESHOLD_RULE = "valor fijo"
 # Ronda para los vasos finos (etapa 5f; plan, desvío 14.8): entrenar con un tercio de
 # los píxeles de vaso de cada clase de grosor en lugar de sorteados al azar. Adoptado:
 # los vasos finos suben de 34 % a 40 % con Matthews igual. La resolución completa no ayudó.

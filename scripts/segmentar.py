@@ -6,7 +6,8 @@ Uso:  python scripts/segmentar.py foto.jpg mascara.png
 
 La máscara se guarda en blanco (vaso) y negro (fondo), del mismo tamaño que la
 foto. No necesita la máscara del campo de visión: la detecta sola. Los pesos
-de la combinación se leen de models/pesos_combinacion.json.
+de la combinación y los umbrales se leen de models/pesos_combinacion.json, y
+la regla del umbral (valor fijo, etapa 8) de config.SEGMENT_THRESHOLD_RULE.
 """
 import argparse
 import sys
@@ -17,7 +18,7 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.pipeline import WEIGHTS_PATH, load_weights, segment_image, segment_reference  # noqa: E402
+from src.pipeline import WEIGHTS_PATH, segment_final  # noqa: E402
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -28,13 +29,10 @@ if __name__ == "__main__":
     parser.add_argument("--pesos", type=Path, default=WEIGHTS_PATH)
     args = parser.parse_args()
 
+    if not args.pesos.exists():
+        sys.exit(f"Faltan los pesos y umbrales en {args.pesos}.")
     rgb = np.asarray(Image.open(args.foto).convert("RGB"))
-    if args.referencia:
-        mask = segment_reference(rgb)
-    else:
-        if not args.pesos.exists():
-            sys.exit(f"Faltan los pesos de la combinación en {args.pesos}.")
-        mask = segment_image(rgb, load_weights(args.pesos))
+    mask = segment_final(rgb, reference=args.referencia, path=args.pesos)
     Image.fromarray(mask.astype(np.uint8) * 255).save(args.salida)
     print(f"{args.salida}: {mask.sum():,} píxeles de vaso ({mask.mean():.1%} de la foto)")
     if args.superpuesta:
