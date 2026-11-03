@@ -173,3 +173,17 @@ ROBUST_NOISE_SIGMAS = (5, 10, 20)
 # misma porción de retina que en la etapa 3b (5 píxeles a 1/2 de resolución).
 ROBUST_WIENER_SIZE = WIENER_SIZE * STAGE3_FACTOR + 1
 ROBUST_DEBLUR_BALANCE = 0.1
+
+# --- Robustez, parte de imagen (etapa 8; temas obligatorios de compresión y reconstrucción) ---
+# Calidad de la foto (no del algoritmo): tamaño de archivo, PSNR y SSIM del verde
+# contra la original, para calidades .jpg de 90 a 10.
+IMAGE_JPEG_QUALITIES = (90, 70, 50, 30, 10)
+# Restauración clásica con degradación conocida, sobre el verde: desenfoque de
+# σ = 1, 2 y 4 píxeles, sin ruido y con ruido de σ = 5 niveles.
+RESTORE_BLUR_PX = (1, 2, 4)
+RESTORE_NOISE_SIGMAS = (0, 5)
+# Parámetro de cada método: se elige el de mayor PSNR medio en el interior del campo
+# en 5 imágenes de desarrollo, para cada degradación, y se informa en las otras 25.
+RESTORE_PARAMS = {"filtro inverso": (0.01, 0.05, 0.2),        # umbral de |H|
+                  "Wiener": (0.001, 0.01, 0.1),               # cociente ruido / señal K
+                  "mínimos cuadrados restringidos": (0.001, 0.01, 0.1)}   # γ
