@@ -137,7 +137,12 @@ SEGMENT_FEATURES = SEGMENT_BASE_FEATURES + [
     f"{f} {w}" for w in ENHANCE_WIDTHS_PX
     for f in ("detector de líneas", "filtro adaptado", "Gabor", "Frangi")]
 SEGMENT_REFERENCE_FILTER = "detector de líneas"
-SEGMENT_FRACTION = 0.09        # elegida en las 5 vueltas; regla cerrada en la etapa 8 (fracción fija)
+SEGMENT_FRACTION = 0.09        # elegida en las 5 vueltas
+# Regla del umbral, cerrada en la etapa 8 (notebooks/08_robustez.ipynb) con el
+# desvío 14.7: en robustez ninguna pierde; por concordancia clínica (etapa 7)
+# gana el valor fijo (correlación intraclase 0,21 contra −0,02). El valor es el
+# elegido con todo desarrollo y guardado con save_weights (models/pesos_combinacion.json).
+SEGMENT_THRESHOLD_RULE = "valor fijo"
 # Ronda para los vasos finos (etapa 5f; plan, desvío 14.8): entrenar con un tercio de
 # los píxeles de vaso de cada clase de grosor en lugar de sorteados al azar. Adoptado:
 # los vasos finos suben de 34 % a 40 % con Matthews igual. La resolución completa no ayudó.
@@ -168,3 +173,17 @@ ROBUST_NOISE_SIGMAS = (5, 10, 20)
 # misma porción de retina que en la etapa 3b (5 píxeles a 1/2 de resolución).
 ROBUST_WIENER_SIZE = WIENER_SIZE * STAGE3_FACTOR + 1
 ROBUST_DEBLUR_BALANCE = 0.1
+
+# --- Robustez, parte de imagen (etapa 8; temas obligatorios de compresión y reconstrucción) ---
+# Calidad de la foto (no del algoritmo): tamaño de archivo, PSNR y SSIM del verde
+# contra la original, para calidades .jpg de 90 a 10.
+IMAGE_JPEG_QUALITIES = (90, 70, 50, 30, 10)
+# Restauración clásica con degradación conocida, sobre el verde: desenfoque de
+# σ = 1, 2 y 4 píxeles, sin ruido y con ruido de σ = 5 niveles.
+RESTORE_BLUR_PX = (1, 2, 4)
+RESTORE_NOISE_SIGMAS = (0, 5)
+# Parámetro de cada método: se elige el de mayor PSNR medio en el interior del campo
+# en 5 imágenes de desarrollo, para cada degradación, y se informa en las otras 25.
+RESTORE_PARAMS = {"filtro inverso": (0.01, 0.05, 0.2),        # umbral de |H|
+                  "Wiener": (0.001, 0.01, 0.1),               # cociente ruido / señal K
+                  "mínimos cuadrados restringidos": (0.001, 0.01, 0.1)}   # γ

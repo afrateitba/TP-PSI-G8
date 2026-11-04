@@ -72,3 +72,68 @@ def test_unknown_or_incomplete_restoration():
         restore_photo(rgb, "mediana", region)
     with pytest.raises(ValueError):
         restore_photo(rgb, "wiener_desenfoque", region)
+
+# --- Calidad de la foto y restauración clásica -----------------------------------
+from src.degrade import (CLASSIC_RESTORATIONS, degrade_band, image_quality, inner_region,
+                         jpeg_size, restore_band)
+
+
+def band_with_detail(n=256, seed=2026):
+    """Banda con bordes netos (varias líneas) dentro de un círculo, y su región."""
+    yy, xx = np.mgrid[:n, :n]
+    region = np.hypot(yy - n / 2, xx - n / 2) < n * 0.45
+    band = np.full((n, n), 120.0)
+    for x0 in range(40, 220, 30):
+        band[:, x0:x0 + 3] = 70.0
+    band[~region] = 0
+    return band, region
+
+
+def test_jpeg_size_shrinks_with_quality():
+    rgb, _ = photo()
+    assert jpeg_size(rgb, 10) < jpeg_size(rgb, 50) < jpeg_size(rgb, 90)
+
+
+def test_image_quality_identical_and_degraded():
+    band, region = band_with_detail()
+    q = image_quality(band, band, region)
+    assert q["PSNR"] == float("inf") and q["SSIM"] == pytest.approx(1.0)
+    noisy = degrade_band(band, 0, 10, seed=1)
+    q = image_quality(noisy, band, region)
+    assert 25 < q["PSNR"] < 35 and q["SSIM"] < 0.9     # σ = 10 → PSNR ≈ 28 dB
+
+
+@pytest.mark.parametrize("method,param", [("filtro inverso", 0.05), ("Wiener", 0.001),
+                                          ("mínimos cuadrados restringidos", 0.001)])
+def test_restoration_improves_blur_without_noise(method, param):
+    from scipy import ndimage as ndi
+    band, region = band_with_detail()
+    blurred = degrade_band(band, 2, 0, seed=1)
+    restored = restore_band(blurred, region, 2, method, param)
+    inner = ndi.binary_erosion(region, iterations=15)        # lejos del borde del campo
+    assert image_quality(restored, band, inner)["PSNR"] > image_quality(blurred, band, inner)["PSNR"]
+
+
+def test_inverse_filter_amplifies_noise_more_than_wiener():
+    # el clásico: con ruido, el inverso casi sin truncar amplifica el ruido; Wiener no
+    from scipy import ndimage as ndi
+    band, region = band_with_detail()
+    bad = degrade_band(band, 2, 5, seed=1)
+    inner = ndi.binary_erosion(region, iterations=15)
+    inv = image_quality(restore_band(bad, region, 2, "filtro inverso", 0.001), band, inner)["PSNR"]
+    wie = image_quality(restore_band(bad, region, 2, "Wiener", 0.01), band, inner)["PSNR"]
+    assert wie > inv
+
+
+def test_unknown_method():
+    band, region = band_with_detail()
+    with pytest.raises(ValueError):
+        restore_band(band, region, 2, "mediana", 0.1)
+
+
+def test_inner_region_and_interior_measures():
+    band, region = band_with_detail()
+    inner = inner_region(region, 0.05)
+    assert inner.sum() < region.sum() and not (inner & ~region).any()
+    q = image_quality(degrade_band(band, 0, 10, seed=1), band, region, inner)
+    assert set(q) == {"PSNR", "SSIM", "PSNR interior", "SSIM interior"}

@@ -8,8 +8,10 @@ Recibe solo la foto a color, como lo hará con las imágenes de la cátedra:
    entre escalas y además en cada escala por separado, y estandariza los
    mapas (SEGMENT_FEATURES) dentro del campo detectado;
 4. los combina con una regresión logística (pesos ajustados con desarrollo);
-5. agranda la probabilidad al tamaño original y marca como vaso la fracción
-   SEGMENT_FRACTION más alta del campo de visión detectado a resolución original.
+5. agranda la probabilidad al tamaño original y aplica el umbral con la regla de
+   la etapa 8 (SEGMENT_THRESHOLD_RULE: valor fijo): marca como vaso la
+   probabilidad mayor que el valor guardado, dentro del campo de visión
+   detectado a resolución original (segment_final).
 
 La referencia clásica (plan, sección 10) es el mismo camino con un solo mapa,
 el detector de líneas, y la misma regla de umbral.
@@ -341,3 +343,57 @@ def load_dev_mask(image_id: str, kind: str = "combinación", cache: Path = MASK_
     z = np.load(cache / f"{image_id}.npz")
     shape = tuple(z["shape"])
     return np.unpackbits(z[kind])[: shape[0] * shape[1]].reshape(shape).astype(bool)
+
+
+# --- Algoritmo final con la regla del umbral cerrada (etapa 8; desvío 14.7) ---
+
+def final_threshold(rule: str, saved: dict, reference: bool = False) -> tuple[float | None, float | None]:
+    """(fracción, valor) que usa el algoritmo final según la regla `rule` y lo guardado.
+
+    Con "valor fijo" devuelve (None, valor guardado): el de la combinación o,
+    con `reference`, el de la referencia clásica ("reference_value"). Con
+    "fracción fija" devuelve (fracción guardada, None). Falla si falta el valor.
+    """
+    if rule == "fracción fija":
+        return saved["fraction"], None
+    if rule != "valor fijo":
+        raise ValueError(f"Regla del umbral desconocida: {rule!r}")
+    key = "reference_value" if reference else "value"
+    if saved.get(key) is None:
+        raise ValueError(f"Falta {key!r} en los pesos guardados (save_weights / save_reference_value)")
+    return None, float(saved[key])
+
+
+def load_threshold(path: Path = WEIGHTS_PATH) -> dict:
+    """Fracción y valores fijos guardados junto con los pesos (save_weights, save_reference_value)."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    return {"fraction": data.get("fraction"), "value": data.get("value"),
+            "reference_value": data.get("reference_value")}
+
+
+def save_reference_value(value: float, path: Path = WEIGHTS_PATH) -> None:
+    """Agrega al archivo de pesos el valor fijo de la referencia clásica (detector de líneas solo).
+
+    Es el que da choose_value(samples, None, ids) con todo desarrollo, como el
+    de la combinación. Así la referencia usa la misma regla de umbral (plan, sección 10).
+    """
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    data["reference_value"] = float(value)
+    Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def segment_final(rgb: np.ndarray, reference: bool = False, return_score: bool = False,
+                  path: Path = WEIGHTS_PATH):
+    """El algoritmo final tal como se congela: pesos guardados y la regla SEGMENT_THRESHOLD_RULE.
+
+    Con `reference`, la referencia clásica con la misma regla. Es la función
+    que usan el script y la evaluación en prueba; segment_image y
+    segment_reference siguen sirviendo con pesos y umbrales explícitos.
+    """
+    from .config import SEGMENT_THRESHOLD_RULE
+
+    fraction, value = final_threshold(SEGMENT_THRESHOLD_RULE, load_threshold(path), reference)
+    if reference:
+        return segment_reference(rgb, fraction=fraction, value=value)
+    return segment_image(rgb, load_weights(path), fraction=fraction, value=value,
+                         return_score=return_score)
