@@ -73,7 +73,7 @@ Prueba se abre **una sola vez**, cuando se cumplan todas estas condiciones:
 
 ## 9. Qué se congela
 
-Se completa al cerrar la etapa 8. El valor definitivo es el del commit `congelado-test`.
+Se completa al cerrar la etapa 8. El valor definitivo es el del commit `congelado-test` (46f46ebc62056ce5b3dd474189e7086e501f8707; evaluación corrida el 4/11/2026 en `notebooks/99_prueba.ipynb`).
 
 | Componente | Valor |
 |---|---|
