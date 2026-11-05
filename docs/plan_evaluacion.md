@@ -233,3 +233,13 @@ Para esto, la etapa 7 calcula las medidas con las dos reglas, para la combinaci�
 - La referencia clásica usa la misma regla con **su propio valor fijo (0,945)**, elegido el 3/11 con todo desarrollo como el de la combinación (`choose_value` con el puntaje del detector de líneas); antes no estaba guardado.
 - `notebooks/99_prueba.ipynb` y `scripts/segmentar.py` usan `src/pipeline.segment_final(rgb)` para el algoritmo y `segment_final(rgb, reference=True)` para la referencia, que leen la regla de `config.SEGMENT_THRESHOLD_RULE` y los valores de `models/pesos_combinacion.json`. `segment_image` y `segment_reference` no cambian y siguen sirviendo con umbrales explícitos.
 - Las curvas de robustez de la sección 11, punto 5, se repiten sobre prueba con los mismos niveles (`config.ROBUST_*`, `IMAGE_JPEG_QUALITIES` y `RESTORE_*`).
+
+### 14.10 (04/11/2026, antes de abrir prueba) Etapa 6: la corrección dirigida a retinopatía no se aplica
+
+**Qué pasó.** El análisis de errores con la versión final (`06_analisis_errores.ipynb`: combinación con valor fijo, máscaras de `05d`) encontró que la retinopatía diabética es peor que el resto en Matthews (−0,076; intervalo −0,108 a −0,048) y también en el Dice de línea central (−0,093; −0,137 a −0,051). Según la regla de la etapa 6 (esquema, sección 4.1; desvío 14.3), eso dispara una corrección dirigida.
+
+**Decisión.** No se aplica ninguna corrección. Motivos:
+1. El desvío 14.8 cerró el algoritmo sin excepciones después de la ronda de vasos finos, y las etapas 7 y 8 ya se calcularon con él.
+2. La corrección prevista para retinopatía, la limpieza por forma (quitar componentes no alargadas, como las lesiones), ya se probó en `05c` y no se adoptó porque bajaba la sensibilidad en vasos finos, la limitación principal del algoritmo. *Limitación de este argumento:* en `05c` se probó sobre el detector de líneas y no sobre la combinación final.
+
+**Efecto sobre prueba.** Ninguno sobre el algoritmo congelado. En prueba se informa el desempeño por grupo (sección 11) y la menor calidad en retinopatía se discute como limitación, junto con la diferencia de marcado de los expertos (desvío 14.3).
