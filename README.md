@@ -14,13 +14,15 @@ python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # en Linux o macOS: .venv/bin/python
 ```
 
+En Windows conviene clonar el repositorio en una carpeta de ruta corta (por ejemplo `C:\tp`): Jupyter instala archivos con rutas muy largas y la instalación falla si la ruta completa pasa los 260 caracteres (salvo que estén habilitadas las rutas largas de Windows).
+
 ## Datos
 
 ```bash
 .venv/Scripts/python scripts/download_data.py
 ```
 
-Descarga la base (unos 76 megabytes) a `data/raw/`, que no se versiona. Base de Budai et al. (2013), licencia Creative Commons 4.0 con atribución.
+Descarga la base (unos 76 megabytes) a `data/raw/`, que no se versiona. Base de Budai et al. (2013), licencia Creative Commons 4.0 con atribución. Si la descarga se corta, se vuelve a correr el mismo comando: verifica el tamaño del archivo y lo baja de nuevo.
 
 ## Segmentar una foto nueva
 
@@ -41,7 +43,7 @@ La máscara se guarda en blanco (vaso) y negro (fondo), del tamaño de la foto. 
 ## Ejecución
 
 - `scripts/make_split.py`: genera `data/split.csv` (ya está generado y versionado; no se vuelve a correr).
-- `notebooks/`: un cuaderno por etapa, numerado. Las máscaras de desarrollo con validación cruzada, que usan las etapas 6 a 8, las genera `05d_mascaras_desarrollo.ipynb` en `results/cache/` (no versionado); hay que correrlo antes de esas etapas.
+- `notebooks/`: un cuaderno por etapa, numerado, con sus resultados guardados (se pueden leer sin volver a correrlos). Se abren con `.venv/Scripts/python -m jupyter lab`. Los cuadernos 02, 03, 04, 06 y 08 se hicieron en Colab y funcionan también localmente. `02e_color_no_lineal.ipynb` quedó armado pero no se corrió: era una prueba opcional (esquema, etapa 2e). Las máscaras de desarrollo con validación cruzada, que usan las etapas 6 a 8, las genera `05d_mascaras_desarrollo.ipynb` en `results/cache/` (no versionado); hay que correrlo antes de esas etapas.
 - `notebooks/99_prueba.ipynb`: la evaluación en el conjunto de prueba. Se corrió una sola vez sobre `congelado-test` y no se vuelve a correr; es el único lugar donde se pueden abrir las imágenes de prueba.
 - `notebooks/05_segmentacion.ipynb` es la primera versión de la etapa 5, hecha en Colab: queda como registro y no se corre localmente (sus celdas reescriben archivos de `src/` y `tests/`).
 - Pruebas: `.venv/Scripts/python -m pytest`
